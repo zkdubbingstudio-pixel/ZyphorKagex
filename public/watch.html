@@ -3,13 +3,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ZK Dubbing Player</title>
+    <title>ZK Dubbing Studio Player</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; -webkit-user-select: none; }
-        body, html { width: 100%; height: 100%; background-color: #000; color: #fff; font-family: Arial, sans-serif; overflow: hidden; }
+        * { 
+            margin: 0; 
+            padding: 0; 
+            box-sizing: border-box; 
+            user-select: none; 
+            -webkit-user-select: none; 
+            -webkit-touch-callout: none;
+        }
+        body, html { 
+            width: 100%; 
+            height: 100%; 
+            background-color: #000; 
+            color: #fff; 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            overflow: hidden; 
+        }
         
-        .player-container { position: relative; width: 100vw; height: 100vh; background: #000; display: flex; justify-content: center; align-items: center; }
+        .player-container { 
+            position: relative; 
+            width: 100vw; 
+            height: 100vh; 
+            background: #000; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+        }
         
         /* ZK Dubbing Logo Overlay */
         .brand-logo { 
@@ -20,18 +42,10 @@
             z-index: 20; 
             opacity: 0.85; 
             pointer-events: none; 
-            filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.8));
+            filter: drop-shadow(0px 2px 5px rgba(0,0,0,0.9));
         }
 
-        /* Video / Embed Frame */
-        .stream-frame {
-            width: 100%;
-            height: 100%;
-            border: none;
-            display: block;
-        }
-
-        /* Dynamic Watermark Overlay */
+        /* Dynamic Floating Watermark Overlay */
         #watermark {
             position: absolute; 
             top: 30%; 
@@ -45,7 +59,36 @@
             text-shadow: 1px 1px 3px #000;
         }
 
-        #errorMsg { display: none; text-align: center; color: #ff4d4d; font-size: 16px; padding: 20px; z-index: 30; }
+        /* Video / Embed Frame Container */
+        #mediaContainer {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .stream-frame {
+            width: 100%;
+            height: 100%;
+            border: none;
+            display: block;
+        }
+
+        /* Error UI */
+        #errorMsg { 
+            display: none; 
+            text-align: center; 
+            color: #ff4d4d; 
+            font-size: 16px; 
+            padding: 25px; 
+            background: rgba(20, 20, 20, 0.95);
+            border: 1px solid #333;
+            border-radius: 10px;
+            z-index: 30; 
+            max-width: 85%;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.8);
+        }
     </style>
 </head>
 <body>
@@ -57,24 +100,29 @@
         <!-- Dynamic Floating Watermark -->
         <div id="watermark">ZK Dubbing Studio</div>
 
-        <!-- Video Container (Holds video or iframe) -->
-        <div id="mediaContainer" style="width:100%; height:100%;"></div>
+        <!-- Media Embed Container -->
+        <div id="mediaContainer"></div>
 
-        <div id="errorMsg">Streaming link expired ya invalid hai.</div>
+        <!-- Error Message Container -->
+        <div id="errorMsg">Access Denied</div>
     </div>
 
     <script>
+        // Telegram WebApp Initialization
         const tg = window.Telegram?.WebApp;
         if (tg) tg.expand();
 
+        // Get Query Parameters
         const urlParams = new URLSearchParams(window.location.search);
         const episodeId = urlParams.get('id');
         const token = urlParams.get('token');
 
+        // Extract Current Telegram User Info
         const user = tg?.initDataUnsafe?.user;
-        const viewerText = user ? `${user.username || user.first_name} (${user.id})` : 'Guest User';
+        const currentUserId = user ? user.id : '0';
+        const viewerText = user ? `${user.username || user.first_name} (${user.id})` : 'ZK Guest';
 
-        // Watermark Movement
+        // Dynamic Moving Watermark Setup
         const wm = document.getElementById('watermark');
         wm.innerText = `ZK Dubbing | ${viewerText}`;
         setInterval(() => {
@@ -82,21 +130,23 @@
             wm.style.left = Math.floor(Math.random() * 60) + 10 + '%';
         }, 4000);
 
+        // Fetch & Load Episode
         async function loadEpisode() {
-            if (!episodeId) {
-                showError("Episode ID missing.");
+            if (!episodeId || !token) {
+                showError("Invalid or missing parameters.");
                 return;
             }
 
             try {
-                const res = await fetch(`/api/get-episode-data?episodeId=${episodeId}&token=${token}`);
+                // Pass currentUserId to backend for anti-leak verification
+                const res = await fetch(`/api/get-episode-data?episodeId=${episodeId}&token=${token}&currentUserId=${currentUserId}`);
                 const data = await res.json();
 
                 if (data.success) {
                     const container = document.getElementById('mediaContainer');
                     const videoSrc = data.videoUrl;
 
-                    // Check if input is iframe or URL
+                    // Support both Direct Links and <iframe> embed codes
                     if (videoSrc.includes('<iframe') || videoSrc.includes('src=')) {
                         container.innerHTML = videoSrc;
                         const iframe = container.querySelector('iframe');
@@ -105,17 +155,14 @@
                             iframe.style.height = '100%';
                             iframe.style.border = 'none';
                         }
-                    } else if (videoSrc.startsWith('http://') || videoSrc.startsWith('https://')) {
-                        // If it's an embed link or video link
-                        container.innerHTML = `<iframe src="${videoSrc}" class="stream-frame" allowfullscreen></iframe>`;
                     } else {
-                        showError("Invalid Embed or Video Link.");
+                        container.innerHTML = `<iframe src="${videoSrc}" class="stream-frame" allowfullscreen></iframe>`;
                     }
                 } else {
                     showError(data.message);
                 }
             } catch (err) {
-                showError("Video load karne mein error aaya.");
+                showError("Video load karne mein error aaya. Network check karein.");
             }
         }
 
@@ -125,12 +172,18 @@
             errDiv.style.display = 'block';
         }
 
+        // Initialize Streaming Process
         loadEpisode();
 
-        // Anti-Piracy Protection
+        // Anti-Piracy Protection (Block Right Click & Developer Tools)
         document.addEventListener('contextmenu', e => e.preventDefault());
         document.addEventListener('keydown', e => {
-            if (e.keyCode === 123 || (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 74)) || (e.ctrlKey && e.keyCode === 85)) {
+            if (
+                e.keyCode === 123 || 
+                (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 74)) || 
+                (e.ctrlKey && e.keyCode === 85) ||
+                (e.ctrlKey && e.keyCode === 83)
+            ) {
                 e.preventDefault();
                 return false;
             }
