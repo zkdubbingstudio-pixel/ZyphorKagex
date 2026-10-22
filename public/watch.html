@@ -1,123 +1,38 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kitsu Player - ZK Dubbing</title>
-    <style>
-        body {
-            margin: 0;
-            padding: 0;
-            background-color: #000;
-            color: #fff;
-            font-family: Arial, sans-serif;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            overflow: hidden;
+<script>
+    async function loadVideo() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const token = urlParams.get('token');
+        const container = document.getElementById('playerContainer');
+        const statusMsg = document.getElementById('statusMsg');
+
+        if (!token) {
+            statusMsg.innerText = "❌ Invalid Link / Token Missing!";
+            return;
         }
-        .header {
-            position: absolute;
-            top: 15px;
-            left: 15px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            z-index: 10;
-        }
-        .header img {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-        }
-        .player-container {
-            width: 100%;
-            height: 100%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-        iframe, video {
-            width: 100%;
-            height: 100%;
-            border: none;
-        }
-        .error-msg {
-            color: #ff4d4d;
-            background: rgba(20, 20, 20, 0.9);
-            padding: 15px 25px;
-            border-radius: 8px;
-            text-align: center;
-            font-size: 14px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
-        }
-        .footer {
-            position: absolute;
-            bottom: 15px;
-            font-size: 11px;
-            color: #666;
-        }
-    </style>
-</head>
-<body>
 
-    <div class="header">
-        <img src="https://i.postimg.cc/zk-logo.png" onerror="this.style.display='none'" alt="ZK Logo">
-        <span style="font-weight: bold; color: #3b82f6;">Kitsu (キツ)</span>
-    </div>
+        try {
+            const res = await fetch(`/api/validate-token?token=${token}`);
+            const data = await res.json();
 
-    <div class="player-container" id="playerContainer">
-        <div class="error-msg" id="statusMsg">Video load ho raha hai...</div>
-    </div>
+            if (data.success && data.video_url) {
+                let videoUrl = data.video_url;
 
-    <div class="footer">
-        ZK Dubbing | zk_voice_hub
-    </div>
-
-    <script>
-        async function loadVideo() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const episodeId = urlParams.get('id');
-            const token = urlParams.get('token');
-            const container = document.getElementById('playerContainer');
-            const statusMsg = document.getElementById('statusMsg');
-
-            if (!episodeId) {
-                statusMsg.innerText = "❌ Episode ID missing hai.";
-                return;
-            }
-
-            try {
-                // Fetch Episode Details from Backend API
-                const res = await fetch(`/api/get-watch-token?episodeId=${episodeId}`);
-                const data = await res.json();
-
-                if (data.success && data.episode && data.episode.video_url) {
-                    let videoUrl = data.episode.video_url;
-
-                    // Agar URL iframe (embed) video source hai (Jaise AbyssPlayer, Dailymotion etc.)
-                    if (videoUrl.includes('player.abyssplayer.com') || videoUrl.includes('embed') || videoUrl.includes('iframe')) {
-                        container.innerHTML = `<iframe src="${videoUrl}" allowfullscreen allow="autoplay"></iframe>`;
-                    } else {
-                        // Direct Video File (MP4/MKV)
-                        container.innerHTML = `
-                            <video controls autoplay name="media">
-                                <source src="${videoUrl}" type="video/mp4">
-                                Aapka browser video play nahi kar sakta.
-                            </video>`;
-                    }
+                if (videoUrl.includes('player.abyssplayer.com') || videoUrl.includes('embed') || videoUrl.includes('iframe')) {
+                    container.innerHTML = `<iframe src="${videoUrl}" allowfullscreen allow="autoplay"></iframe>`;
                 } else {
-                    statusMsg.innerText = "❌ Video load karne mein error aaya. Episode DB mein nahi mila.";
+                    container.innerHTML = `
+                        <video controls autoplay name="media">
+                            <source src="${videoUrl}" type="video/mp4">
+                        </video>`;
                 }
-            } catch (err) {
-                console.error(err);
-                statusMsg.innerText = "Video load karne mein error aaya. Network check karein.";
+            } else {
+                statusMsg.innerText = data.message || "❌ Link expired or usage limit exceeded!";
             }
+        } catch (err) {
+            console.error(err);
+            statusMsg.innerText = "❌ Network Error or Invalid Token!";
         }
+    }
 
-        loadVideo();
-    </script>
-</body>
-</html>
+    loadVideo();
+</script>
