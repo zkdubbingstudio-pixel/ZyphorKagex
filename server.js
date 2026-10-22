@@ -59,7 +59,7 @@ app.post('/api/publish-episode', async (req, res) => {
     }
 });
 
-// Token Generate API Route (10 mins expiry, 10 max uses to avoid prefetch blockage)
+// Token Generate API Route
 app.get('/api/get-watch-token', async (req, res) => {
     const { episodeId, userId } = req.query;
 
@@ -75,23 +75,29 @@ app.get('/api/get-watch-token', async (req, res) => {
             .single();
 
         if (epError || !episode) {
+            console.error("Episode fetch error:", epError);
             return res.json({ success: false, message: "Episode not found" });
         }
 
         const token = `tok_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-        const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 Minutes Expiry
+        const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // 15 Minutes Expiry
 
-        // Save Token in Supabase
-        await supabase.from('episode_tokens').insert([
+        // Save Token in Supabase with Error Check
+        const { error: insertError } = await supabase.from('episode_tokens').insert([
             {
                 token: token,
                 episode_id: episodeId,
-                user_id: userId,
+                user_id: String(userId),
                 uses_count: 0,
-                max_uses: 10,
+                max_uses: 20,
                 expires_at: expiresAt
             }
         ]);
+
+        if (insertError) {
+            console.error("Token Insert Error:", insertError);
+            return res.json({ success: false, message: "DB Insert Failed: " + insertError.message });
+        }
 
         res.json({
             success: true,
@@ -99,11 +105,12 @@ app.get('/api/get-watch-token', async (req, res) => {
             episode: episode
         });
     } catch (err) {
+        console.error("Get Token Exception:", err);
         res.status(500).json({ success: false, message: err.message });
     }
 });
 
-// Watch page stream validate and usage count update API Route
+// Watch page stream validate API Route
 app.get('/api/validate-token', async (req, res) => {
     const { token } = req.query;
 
@@ -118,17 +125,18 @@ app.get('/api/validate-token', async (req, res) => {
             .single();
 
         if (tokError || !tokData) {
+            console.error("Token validation lookup error:", tokError);
             return res.json({ success: false, message: "Invalid or expired link!" });
         }
 
         // 2. Expiry check
         if (new Date() > new Date(tokData.expires_at)) {
-            return res.json({ success: false, message: "⏰ Link expired! Channel post link par phir se click karke new button mangwayen." });
+            return res.json({ success: false, message: "⏰ Link expired! Please get a new link from channel." });
         }
 
         // 3. Max use check
         if (tokData.uses_count >= tokData.max_uses) {
-            return res.json({ success: false, message: "🚫 Limit exceeded! Channel post link par phir se click karein." });
+            return res.json({ success: false, message: "🚫 Limit exceeded! Please request a new link." });
         }
 
         // 4. Fetch episode details
@@ -139,6 +147,7 @@ app.get('/api/validate-token', async (req, res) => {
             .single();
 
         if (epError || !episode) {
+            console.error("Episode lookup error for token:", epError);
             return res.json({ success: false, message: "Episode associated with token not found!" });
         }
 
@@ -153,6 +162,7 @@ app.get('/api/validate-token', async (req, res) => {
             video_url: episode.video_url
         });
     } catch (err) {
+        console.error("Validate Token Exception:", err);
         res.status(500).json({ success: false, message: err.message });
     }
 });
