@@ -59,7 +59,7 @@ app.post('/api/publish-episode', async (req, res) => {
     }
 });
 
-// Token Generate API Route (5 mins expiry, 2 max uses)
+// Token Generate API Route (10 mins expiry, 10 max uses to avoid prefetch blockage)
 app.get('/api/get-watch-token', async (req, res) => {
     const { episodeId, userId } = req.query;
 
@@ -79,7 +79,7 @@ app.get('/api/get-watch-token', async (req, res) => {
         }
 
         const token = `tok_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-        const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString(); // 5 Minutes Expiry
+        const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 Minutes Expiry
 
         // Save Token in Supabase
         await supabase.from('episode_tokens').insert([
@@ -88,7 +88,7 @@ app.get('/api/get-watch-token', async (req, res) => {
                 episode_id: episodeId,
                 user_id: userId,
                 uses_count: 0,
-                max_uses: 2,
+                max_uses: 10,
                 expires_at: expiresAt
             }
         ]);
@@ -103,7 +103,7 @@ app.get('/api/get-watch-token', async (req, res) => {
     }
 });
 
-// Watch page stream validate and usage count update API Route (Foreign Key independent)
+// Watch page stream validate and usage count update API Route
 app.get('/api/validate-token', async (req, res) => {
     const { token } = req.query;
 
@@ -121,17 +121,17 @@ app.get('/api/validate-token', async (req, res) => {
             return res.json({ success: false, message: "Invalid or expired link!" });
         }
 
-        // 2. Expiry check (5 min)
+        // 2. Expiry check
         if (new Date() > new Date(tokData.expires_at)) {
-            return res.json({ success: false, message: "⏰ Link expired (5 minutes timeout)!" });
+            return res.json({ success: false, message: "⏰ Link expired! Channel post link par phir se click karke new button mangwayen." });
         }
 
-        // 3. Max use check (2 times limit)
+        // 3. Max use check
         if (tokData.uses_count >= tokData.max_uses) {
-            return res.json({ success: false, message: "🚫 Limit exceeded! This link was used 2 times already." });
+            return res.json({ success: false, message: "🚫 Limit exceeded! Channel post link par phir se click karein." });
         }
 
-        // 4. Fetch episode details separately
+        // 4. Fetch episode details
         const { data: episode, error: epError } = await supabase
             .from('episodes')
             .select('*')
@@ -150,8 +150,7 @@ app.get('/api/validate-token', async (req, res) => {
 
         res.json({
             success: true,
-            video_url: episode.video_url,
-            remaining_uses: tokData.max_uses - (tokData.uses_count + 1)
+            video_url: episode.video_url
         });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
