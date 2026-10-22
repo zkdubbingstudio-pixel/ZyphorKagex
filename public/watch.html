@@ -1,193 +1,123 @@
 <!DOCTYPE html>
-<html lang="hi">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ZK Dubbing Studio Player</title>
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kitsu Player - ZK Dubbing</title>
     <style>
-        * { 
-            margin: 0; 
-            padding: 0; 
-            box-sizing: border-box; 
-            user-select: none; 
-            -webkit-user-select: none; 
-            -webkit-touch-callout: none;
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #000;
+            color: #fff;
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
         }
-        body, html { 
-            width: 100%; 
-            height: 100%; 
-            background-color: #000; 
-            color: #fff; 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-            overflow: hidden; 
+        .header {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            z-index: 10;
         }
-        
-        .player-container { 
-            position: relative; 
-            width: 100vw; 
-            height: 100vh; 
-            background: #000; 
-            display: flex; 
-            justify-content: center; 
-            align-items: center; 
+        .header img {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
         }
-        
-        /* ZK Dubbing Logo Overlay */
-        .brand-logo { 
-            position: absolute; 
-            top: 15px; 
-            left: 15px; 
-            width: 80px; 
-            z-index: 20; 
-            opacity: 0.85; 
-            pointer-events: none; 
-            filter: drop-shadow(0px 2px 5px rgba(0,0,0,0.9));
-        }
-
-        /* Dynamic Floating Watermark Overlay */
-        #watermark {
-            position: absolute; 
-            top: 30%; 
-            left: 30%;
-            color: rgba(255, 255, 255, 0.35); 
-            font-size: 13px;
-            font-weight: bold; 
-            pointer-events: none; 
-            z-index: 15;
-            transition: all 1.5s ease-in-out; 
-            text-shadow: 1px 1px 3px #000;
-        }
-
-        /* Video / Embed Frame Container */
-        #mediaContainer {
+        .player-container {
             width: 100%;
             height: 100%;
             display: flex;
             justify-content: center;
             align-items: center;
         }
-
-        .stream-frame {
+        iframe, video {
             width: 100%;
             height: 100%;
             border: none;
-            display: block;
         }
-
-        /* Error UI */
-        #errorMsg { 
-            display: none; 
-            text-align: center; 
-            color: #ff4d4d; 
-            font-size: 16px; 
-            padding: 25px; 
-            background: rgba(20, 20, 20, 0.95);
-            border: 1px solid #333;
-            border-radius: 10px;
-            z-index: 30; 
-            max-width: 85%;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.8);
+        .error-msg {
+            color: #ff4d4d;
+            background: rgba(20, 20, 20, 0.9);
+            padding: 15px 25px;
+            border-radius: 8px;
+            text-align: center;
+            font-size: 14px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        }
+        .footer {
+            position: absolute;
+            bottom: 15px;
+            font-size: 11px;
+            color: #666;
         }
     </style>
 </head>
 <body>
 
-    <div class="player-container">
-        <!-- ZK Dubbing Logo -->
-        <img src="https://i.ibb.co/2Yp3CDq9/file-000000006f2c8211b20c6bedc9f9ac12.png" alt="ZK Logo" class="brand-logo">
+    <div class="header">
+        <img src="https://i.postimg.cc/zk-logo.png" onerror="this.style.display='none'" alt="ZK Logo">
+        <span style="font-weight: bold; color: #3b82f6;">Kitsu (キツ)</span>
+    </div>
 
-        <!-- Dynamic Floating Watermark -->
-        <div id="watermark">ZK Dubbing Studio</div>
+    <div class="player-container" id="playerContainer">
+        <div class="error-msg" id="statusMsg">Video load ho raha hai...</div>
+    </div>
 
-        <!-- Media Embed Container -->
-        <div id="mediaContainer"></div>
-
-        <!-- Error Message Container -->
-        <div id="errorMsg">Access Denied</div>
+    <div class="footer">
+        ZK Dubbing | zk_voice_hub
     </div>
 
     <script>
-        // Telegram WebApp Initialization
-        const tg = window.Telegram?.WebApp;
-        if (tg) tg.expand();
+        async function loadVideo() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const episodeId = urlParams.get('id');
+            const token = urlParams.get('token');
+            const container = document.getElementById('playerContainer');
+            const statusMsg = document.getElementById('statusMsg');
 
-        // Get Query Parameters
-        const urlParams = new URLSearchParams(window.location.search);
-        const episodeId = urlParams.get('id');
-        const token = urlParams.get('token');
-
-        // Extract Current Telegram User Info
-        const user = tg?.initDataUnsafe?.user;
-        const currentUserId = user ? user.id : '0';
-        const viewerText = user ? `${user.username || user.first_name} (${user.id})` : 'ZK Guest';
-
-        // Dynamic Moving Watermark Setup
-        const wm = document.getElementById('watermark');
-        wm.innerText = `ZK Dubbing | ${viewerText}`;
-        setInterval(() => {
-            wm.style.top = Math.floor(Math.random() * 70) + 15 + '%';
-            wm.style.left = Math.floor(Math.random() * 60) + 10 + '%';
-        }, 4000);
-
-        // Fetch & Load Episode
-        async function loadEpisode() {
-            if (!episodeId || !token) {
-                showError("Invalid or missing parameters.");
+            if (!episodeId) {
+                statusMsg.innerText = "❌ Episode ID missing hai.";
                 return;
             }
 
             try {
-                // Pass currentUserId to backend for anti-leak verification
-                const res = await fetch(`/api/get-episode-data?episodeId=${episodeId}&token=${token}&currentUserId=${currentUserId}`);
+                // Fetch Episode Details from Backend API
+                const res = await fetch(`/api/get-watch-token?episodeId=${episodeId}`);
                 const data = await res.json();
 
-                if (data.success) {
-                    const container = document.getElementById('mediaContainer');
-                    const videoSrc = data.videoUrl;
+                if (data.success && data.episode && data.episode.video_url) {
+                    let videoUrl = data.episode.video_url;
 
-                    // Support both Direct Links and <iframe> embed codes
-                    if (videoSrc.includes('<iframe') || videoSrc.includes('src=')) {
-                        container.innerHTML = videoSrc;
-                        const iframe = container.querySelector('iframe');
-                        if (iframe) {
-                            iframe.style.width = '100%';
-                            iframe.style.height = '100%';
-                            iframe.style.border = 'none';
-                        }
+                    // Agar URL iframe (embed) video source hai (Jaise AbyssPlayer, Dailymotion etc.)
+                    if (videoUrl.includes('player.abyssplayer.com') || videoUrl.includes('embed') || videoUrl.includes('iframe')) {
+                        container.innerHTML = `<iframe src="${videoUrl}" allowfullscreen allow="autoplay"></iframe>`;
                     } else {
-                        container.innerHTML = `<iframe src="${videoSrc}" class="stream-frame" allowfullscreen></iframe>`;
+                        // Direct Video File (MP4/MKV)
+                        container.innerHTML = `
+                            <video controls autoplay name="media">
+                                <source src="${videoUrl}" type="video/mp4">
+                                Aapka browser video play nahi kar sakta.
+                            </video>`;
                     }
                 } else {
-                    showError(data.message);
+                    statusMsg.innerText = "❌ Video load karne mein error aaya. Episode DB mein nahi mila.";
                 }
             } catch (err) {
-                showError("Video load karne mein error aaya. Network check karein.");
+                console.error(err);
+                statusMsg.innerText = "Video load karne mein error aaya. Network check karein.";
             }
         }
 
-        function showError(msg) {
-            const errDiv = document.getElementById('errorMsg');
-            errDiv.innerText = msg;
-            errDiv.style.display = 'block';
-        }
-
-        // Initialize Streaming Process
-        loadEpisode();
-
-        // Anti-Piracy Protection (Block Right Click & Developer Tools)
-        document.addEventListener('contextmenu', e => e.preventDefault());
-        document.addEventListener('keydown', e => {
-            if (
-                e.keyCode === 123 || 
-                (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 74)) || 
-                (e.ctrlKey && e.keyCode === 85) ||
-                (e.ctrlKey && e.keyCode === 83)
-            ) {
-                e.preventDefault();
-                return false;
-            }
-        });
+        loadVideo();
     </script>
 </body>
 </html>
