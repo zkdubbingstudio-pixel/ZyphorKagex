@@ -1,97 +1,121 @@
 <!DOCTYPE html>
-<html lang="hi">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ZK Dubbing - Admin Panel</title>
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <title>ZK Dubbing Studio - Admin</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: Arial, sans-serif; }
-        body { background: #0f0f15; color: #fff; padding: 20px; display: flex; justify-content: center; }
-        .admin-card { background: #1a1a24; padding: 25px; border-radius: 12px; width: 100%; max-width: 500px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
-        .logo { width: 140px; display: block; margin: 0 auto 15px; }
-        h2 { text-align: center; margin-bottom: 20px; color: #e50914; font-size: 20px; }
-        .form-group { margin-bottom: 15px; }
-        label { display: block; margin-bottom: 5px; font-size: 13px; color: #aaa; }
-        input { width: 100%; padding: 10px; background: #0f0f15; border: 1px solid #333; color: #fff; border-radius: 6px; outline: none; }
-        button { width: 100%; padding: 12px; background: #e50914; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; margin-top: 10px; }
-        button:hover { background: #b80710; }
-        #accessDenied { display: none; text-align: center; color: #ff4d4d; margin-top: 50px; }
-        #resultBox { margin-top: 15px; padding: 10px; background: #222; border-radius: 6px; display: none; word-break: break-all; font-size: 13px; }
+        body {
+            background-color: #0d0f17;
+            color: #fff;
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+        .container {
+            background: #161b26;
+            padding: 25px;
+            border-radius: 12px;
+            width: 100%;
+            max-width: 420px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.6);
+        }
+        h2 {
+            text-align: center;
+            color: #ff2a2a;
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-top: 12px;
+            font-size: 13px;
+            color: #bbb;
+        }
+        input {
+            width: 100%;
+            padding: 10px;
+            margin-top: 5px;
+            background: #0d0f17;
+            border: 1px solid #333;
+            color: #fff;
+            border-radius: 6px;
+            box-sizing: border-box;
+            font-size: 14px;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            margin-top: 20px;
+            background: #e50914;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            font-weight: bold;
+            font-size: 15px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #b20710;
+        }
     </style>
 </head>
 <body>
-
-    <div id="accessDenied">
-        <h2>🔒 Access Denied</h2>
-        <p>Aapke paas Admin Panel access karne ki permission nahi hai.</p>
-    </div>
-
-    <div class="admin-card" id="adminPanel" style="display: none;">
-        <img src="https://i.ibb.co/2Yp3CDq9/file-000000006f2c8211b20c6bedc9f9ac12.png" alt="ZK Logo" class="logo">
-        <h2>ZK Dubbing Studio - Admin</h2>
-
-        <form id="epForm">
-            <div class="form-group">
-                <label>Anime Name</label>
-                <input type="text" id="animeName" placeholder="e.g. Overlord" required>
-            </div>
-            <div class="form-group">
-                <label>Episode Number</label>
-                <input type="number" id="epNumber" placeholder="e.g. 1" required>
-            </div>
-            <div class="form-group">
-                <label>Episode Title (Optional)</label>
-                <input type="text" id="epTitle" placeholder="e.g. The Beginning">
-            </div>
-            <div class="form-group">
-                <label>Video Stream URL / File Path</label>
-                <input type="text" id="videoUrl" placeholder="Direct Video URL ya Stream Link" required>
-            </div>
+    <div class="container">
+        <h2>ZK Dubbing - Admin</h2>
+        <form id="episodeForm">
+            <label>Anime Name</label>
+            <input type="text" id="animeName" required placeholder="e.g. Overlord">
+            
+            <label>Episode Number</label>
+            <input type="text" id="episodeNumber" required placeholder="01">
+            
+            <label>Episode Title (Optional)</label>
+            <input type="text" id="title" placeholder="Episode Title">
+            
+            <label>Video Stream URL / File Path</label>
+            <input type="text" id="videoUrl" required placeholder="https://...">
+            
             <button type="submit">Publish Episode</button>
         </form>
-
-        <div id="resultBox"></div>
     </div>
 
     <script>
-        const ALLOWED_ADMINS = ['6144546817', '5074717463'];
-        const tg = window.Telegram?.WebApp;
-        if (tg) tg.expand();
-
-        const user = tg?.initDataUnsafe?.user;
-        const currentUserId = user ? String(user.id) : prompt("Enter Admin Telegram ID for Auth Test:");
-
-        if (ALLOWED_ADMINS.includes(currentUserId)) {
-            document.getElementById('adminPanel').style.display = 'block';
-        } else {
-            document.getElementById('accessDenied').style.display = 'block';
-        }
-
-        document.getElementById('epForm').addEventListener('submit', async (e) => {
+        document.getElementById('episodeForm').addEventListener('submit', async function(e) {
             e.preventDefault();
-            const animeName = document.getElementById('animeName').value;
-            const epNumber = document.getElementById('epNumber').value;
-            const epTitle = document.getElementById('epTitle').value;
-            const videoUrl = document.getElementById('videoUrl').value;
 
-            const res = await fetch('/api/admin/add-episode', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-admin-id': currentUserId
-                },
-                body: JSON.stringify({ animeName, epNumber, epTitle, videoUrl })
-            });
+            const animeName = document.getElementById('animeName').value.trim();
+            const episodeNumber = document.getElementById('episodeNumber').value.trim();
+            const title = document.getElementById('title').value.trim();
+            const videoUrl = document.getElementById('videoUrl').value.trim();
 
-            const data = await res.json();
-            const resultBox = document.getElementById('resultBox');
-            resultBox.style.display = 'block';
+            try {
+                const response = await fetch('/api/publish-episode', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        animeName,
+                        episodeNumber,
+                        title,
+                        videoUrl
+                    })
+                });
 
-            if (data.success) {
-                resultBox.innerHTML = `<strong>✅ Success!</strong><br>Episode ID: <code>${data.episodeId}</code><br>Stream Path: <code>${data.streamPath}</code>`;
-            } else {
-                resultBox.innerHTML = `<span style="color:red;">❌ ${data.message}</span>`;
+                const result = await response.json();
+
+                if (result.success) {
+                    alert('✅ Episode Successfully Published!\nEpisode ID: ' + result.episodeId);
+                    document.getElementById('episodeForm').reset();
+                } else {
+                    alert('❌ Error: ' + (result.message || 'Unknown error'));
+                }
+            } catch (err) {
+                console.error(err);
+                alert('❌ Network Error! Episode publish nahi ho paya.');
             }
         });
     </script>
