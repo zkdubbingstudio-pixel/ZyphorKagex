@@ -1,5 +1,5 @@
 const express = require('express');
-const app = express(); // 👈 Sabse upar app initialize kiya hai
+const app = express();
 const { createClient } = require('@supabase/supabase-js');
 const cors = require('cors');
 const path = require('path');
@@ -103,34 +103,46 @@ app.get('/api/get-watch-token', async (req, res) => {
     }
 });
 
-// Watch page stream validate and usage count update API Route
+// Watch page stream validate and usage count update API Route (Foreign Key independent)
 app.get('/api/validate-token', async (req, res) => {
     const { token } = req.query;
 
     if (!token) return res.json({ success: false, message: "Token missing" });
 
     try {
-        const { data: tokData, error } = await supabase
+        // 1. Fetch token data
+        const { data: tokData, error: tokError } = await supabase
             .from('episode_tokens')
-            .select('*, episodes(*)')
+            .select('*')
             .eq('token', token)
             .single();
 
-        if (error || !tokData) {
+        if (tokError || !tokData) {
             return res.json({ success: false, message: "Invalid or expired link!" });
         }
 
-        // Expiry check (5 min)
+        // 2. Expiry check (5 min)
         if (new Date() > new Date(tokData.expires_at)) {
             return res.json({ success: false, message: "⏰ Link expired (5 minutes timeout)!" });
         }
 
-        // Max use check (2 times limit)
+        // 3. Max use check (2 times limit)
         if (tokData.uses_count >= tokData.max_uses) {
             return res.json({ success: false, message: "🚫 Limit exceeded! This link was used 2 times already." });
         }
 
-        // Increment usage count
+        // 4. Fetch episode details separately
+        const { data: episode, error: epError } = await supabase
+            .from('episodes')
+            .select('*')
+            .eq('id', tokData.episode_id)
+            .single();
+
+        if (epError || !episode) {
+            return res.json({ success: false, message: "Episode associated with token not found!" });
+        }
+
+        // 5. Increment usage count
         await supabase
             .from('episode_tokens')
             .update({ uses_count: tokData.uses_count + 1 })
@@ -138,7 +150,7 @@ app.get('/api/validate-token', async (req, res) => {
 
         res.json({
             success: true,
-            video_url: tokData.episodes.video_url,
+            video_url: episode.video_url,
             remaining_uses: tokData.max_uses - (tokData.uses_count + 1)
         });
     } catch (err) {
