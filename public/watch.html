@@ -46,7 +46,7 @@
             color: #ffcc00;
         }
 
-        /* Video Container - Takes remaining full screen space */
+        /* Video Container */
         .player-container {
             position: relative;
             width: 100%;
@@ -110,11 +110,11 @@
                         const watermark = document.getElementById('watermark');
                         watermark.innerText = `ID: ${userId} | ZK Dubbing`;
 
-                        // Iframe ya Video player load karna
+                        // Iframe with full permissions for fullscreen support
                         if (videoUrl.includes('abyssplayer.com') || videoUrl.includes('embed') || videoUrl.includes('iframe')) {
-                            container.innerHTML += `<iframe src="${videoUrl}" allowfullscreen></iframe>`;
+                            container.innerHTML += `<iframe src="${videoUrl}" allow="fullscreen; autoplay; encrypted-media; picture-in-picture" allowfullscreen webkitallowfullscreen mozallowfullscreen></iframe>`;
                         } else {
-                            container.innerHTML += `<video id="videoPlayer" src="${videoUrl}" controls controlsList="nodownload" disablePictureInPicture></video>`;
+                            container.innerHTML += `<video id="videoPlayer" src="${videoUrl}" controls controlsList="nodownload" disablePictureInPicture playsinline webkit-playsinline></video>`;
                         }
 
                         // Watermark ko screen par random move karwana
