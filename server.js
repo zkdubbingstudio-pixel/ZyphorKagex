@@ -2,15 +2,26 @@ const express = require('express');
 const { createClient } = require('@supabase/supabase-js');
 const cors = require('cors');
 const crypto = require('crypto');
+const path = require('path');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
-app.use(express.static('public'));
+app.use(express.static(path.join(__dirname, 'public')));
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
+
+// Explicit Route for Admin Panel
+app.get('/admin', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+});
+
+// Explicit Route for Watch Page
+app.get('/watch', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'watch.html'));
+});
 
 app.get('/', (req, res) => {
     res.send("ZK Dubbing Studio Backend is Live!");
@@ -44,7 +55,7 @@ app.post('/api/episodes', async (req, res) => {
         const { data, error } = await supabase.from('episodes').insert([insertData]);
         if (error) throw error;
         
-        res.json({ success: true, message: "Episode published successfully!" });
+        res.json({ success: true, message: "Episode published successfully!", episodeId: episodeId });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
     }
