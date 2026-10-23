@@ -13,12 +13,10 @@ const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Explicit Route for Admin Panel
 app.get('/admin', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
 
-// Explicit Route for Watch Page
 app.get('/watch', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'watch.html'));
 });
@@ -38,24 +36,55 @@ app.get('/api/episodes', async (req, res) => {
     }
 });
 
-// Publish a new episode from Admin Panel
+// Publish a new episode
 app.post('/api/episodes', async (req, res) => {
     try {
-        const { animeName, anime_name, episodeNumber, episode_number, title, videoUrl, video_url } = req.body;
-        
+        const { animeName, episodeNumber, title, videoUrl } = req.body;
         const episodeId = 'ep_' + Date.now();
         const insertData = {
             id: episodeId,
-            anime_name: animeName || anime_name || 'Anime',
-            episode_number: episodeNumber || episode_number || '1',
+            anime_name: animeName || 'Anime',
+            episode_number: episodeNumber || '1',
             title: title || '',
-            video_url: videoUrl || video_url || ''
+            video_url: videoUrl || ''
         };
 
-        const { data, error } = await supabase.from('episodes').insert([insertData]);
+        const { error } = await supabase.from('episodes').insert([insertData]);
         if (error) throw error;
         
         res.json({ success: true, message: "Episode published successfully!", episodeId: episodeId });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// Update an existing episode
+app.put('/api/episodes/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { animeName, episodeNumber, title, videoUrl } = req.body;
+        
+        const { error } = await supabase.from('episodes').update({
+            anime_name: animeName,
+            episode_number: episodeNumber,
+            title: title,
+            video_url: videoUrl
+        }).eq('id', id);
+
+        if (error) throw error;
+        res.json({ success: true, message: "Episode updated successfully!" });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// Delete an episode
+app.delete('/api/episodes/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { error } = await supabase.from('episodes').delete().eq('id', id);
+        if (error) throw error;
+        res.json({ success: true, message: "Episode deleted successfully!" });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
     }
@@ -107,7 +136,7 @@ app.get('/api/verify-token', async (req, res) => {
         const episode = epData[0];
         res.json({
             success: true,
-            videoUrl: episode.video_url || episode.videoUrl,
+            videoUrl: episode.video_url,
             userId: tRecord.user_id
         });
     } catch (err) {
