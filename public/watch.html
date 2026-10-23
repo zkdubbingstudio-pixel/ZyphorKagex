@@ -1,89 +1,134 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="hi">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kitsu Player - ZK Dubbing</title>
+    <title>Kitsu Player - ZK Dubbing Studio</title>
     <style>
         body {
             margin: 0;
             padding: 0;
-            background-color: #0d0f17;
-            color: #fff;
+            background-color: #0f0f0f;
+            color: #ffffff;
             font-family: Arial, sans-serif;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
             overflow: hidden;
+            user-select: none;
+            -webkit-user-select: none;
         }
+
+        /* Top Navbar with Logo & Name */
+        .header-bar {
+            display: flex;
+            align-items: center;
+            padding: 10px 15px;
+            background: #1a1a1a;
+            border-bottom: 1px solid #333;
+            position: relative;
+            z-index: 10;
+        }
+        .header-bar img {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            object-fit: cover;
+            margin-right: 10px;
+        }
+        .header-bar span {
+            font-size: 16px;
+            font-weight: bold;
+            color: #ffcc00;
+        }
+
+        /* Video Container */
         .player-container {
-            width: 100%;
-            height: 100%;
+            position: relative;
+            width: 100vw;
+            height: calc(100vh - 53px);
             display: flex;
             justify-content: center;
             align-items: center;
         }
-        iframe, video {
+
+        video {
             width: 100%;
             height: 100%;
-            border: none;
+            object-fit: contain;
         }
-        .error-msg {
-            color: #ff4d4d;
-            background: rgba(20, 20, 20, 0.9);
-            padding: 15px 25px;
-            border-radius: 8px;
-            text-align: center;
+
+        /* Anti-Piracy Floating Watermark (User ID) */
+        #watermark {
+            position: absolute;
+            color: rgba(255, 255, 255, 0.4);
             font-size: 14px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+            font-weight: bold;
+            pointer-events: none;
+            z-index: 999;
+            transition: all 2s ease-in-out;
+            text-shadow: 1px 1px 2px black;
         }
     </style>
 </head>
-<body>
+<body oncontextmenu="return false;">
 
-    <div class="player-container" id="playerContainer">
-        <div class="error-msg" id="statusMsg">Video load ho raha hai...</div>
+    <!-- Top Header with Logo and Studio Name -->
+    <div class="header-bar">
+        <img src="https://i.ibb.co/2Yp3CDq9/file-000000006f2c8211b20c6bedc9f9ac12.png" alt="ZK Logo">
+        <span>ZK Dubbing Studio</span>
+    </div>
+
+    <!-- Video Player Container -->
+    <div class="player-container">
+        <div id="watermark">User ID: Loading...</div>
+        <video id="videoPlayer" controls controlsList="nodownload" disablePictureInPicture></video>
     </div>
 
     <script>
-        async function loadVideo() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const token = urlParams.get('token');
-            const container = document.getElementById('playerContainer');
-            const statusMsg = document.getElementById('statusMsg');
+        // URL se token nikalna
+        const urlParams = new URLSearchParams(window.location.search);
+        const token = urlParams.get('token');
 
-            if (!token) {
-                statusMsg.innerText = "❌ Invalid Link / Token Missing!";
-                return;
-            }
+        if (!token) {
+            document.body.innerHTML = "<h2 style='text-align:center; margin-top:50px; color:red;'>⚠️ Invalid or Expired Link!</h2>";
+        } else {
+            // Render backend se token verify karke video URL aur User ID fetch karna
+            fetch(`https://zyphorkagex.onrender.com/api/verify-token?token=${token}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        const videoPlayer = document.getElementById('videoPlayer');
+                        videoPlayer.src = data.videoUrl;
+                        
+                        // User ID watermark set karna
+                        const userId = data.userId || "Protected";
+                        const watermark = document.getElementById('watermark');
+                        watermark.innerText = `ID: ${userId} | ZK Dubbing`;
 
-            try {
-                const res = await fetch(`/api/validate-token?token=${token}`);
-                const data = await res.json();
+                        // Watermark ko screen par random move karwana taaki screen recording ya screenshot secure rahe
+                        setInterval(() => {
+                            const maxX = window.innerWidth - 150;
+                            const maxY = window.innerHeight - 50;
+                            const randomX = Math.floor(Math.random() * maxX);
+                            const randomY = Math.floor(Math.random() * maxY);
+                            watermark.style.left = `${randomX}px`;
+                            watermark.style.top = `${randomY}px`;
+                        }, 4000);
 
-                if (data.success && data.video_url) {
-                    let videoUrl = data.video_url;
-
-                    if (videoUrl.includes('player.abyssplayer.com') || videoUrl.includes('embed') || videoUrl.includes('iframe')) {
-                        container.innerHTML = `<iframe src="${videoUrl}" allowfullscreen allow="autoplay"></iframe>`;
                     } else {
-                        container.innerHTML = `
-                            <video controls autoplay name="media">
-                                <source src="${videoUrl}" type="video/mp4">
-                            </video>`;
+                        document.body.innerHTML = `<h2 style='text-align:center; margin-top:50px; color:red;'>❌ ${data.message || 'Link expired!'}</h2>`;
                     }
-                } else {
-                    statusMsg.innerText = data.message || "❌ Link expired or usage limit exceeded!";
-                }
-            } catch (err) {
-                console.error(err);
-                statusMsg.innerText = "❌ Network Error or Invalid Token!";
-            }
+                })
+                .catch(err => {
+                    document.body.innerHTML = "<h2 style='text-align:center; margin-top:50px; color:red;'>❌ Server Error!</h2>";
+                });
         }
 
-        loadVideo();
+        // Screenshot / Recording warning or detection tricks
+        document.addEventListener('keyup', (e) => {
+            if (e.key == 'PrintScreen') {
+                navigator.clipboard.writeText('');
+                alert('Screenshot is restricted by ZK Dubbing Studio!');
+            }
+        });
     </script>
 </body>
 </html>
