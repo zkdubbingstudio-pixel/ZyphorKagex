@@ -112,18 +112,21 @@
                     return;
                 }
 
-                listDiv.innerHTML = allEpisodes.map(ep => `
-                    <div class="episode-item">
-                        <strong>${ep.anime_name} - Ep ${ep.episode_number}</strong><br>
-                        <small style="color: #aaa;">${ep.title || 'No title'}</small><br>
-                        <span style="color: #00aaee; font-size: 11px; word-break: break-all;">${ep.video_url}</span>
-                        <div class="btn-group">
-                            <button class="btn-copy" onclick="copyLink('${ep.video_url}')">Copy Link</button>
-                            <button class="btn-edit" onclick="editEpisode('${ep.id}')">Edit</button>
-                            <button class="btn-delete" onclick="deleteEpisode('${ep.id}')">Delete</button>
+                listDiv.innerHTML = allEpisodes.map(ep => {
+                    const botLink = `https://t.me/Kitsu_zk_bot?start=${ep.id}`;
+                    return `
+                        <div class="episode-item">
+                            <strong>${ep.anime_name} - Ep ${ep.episode_number}</strong><br>
+                            <small style="color: #aaa;">${ep.title || 'No title'}</small><br>
+                            <span style="color: #00aaee; font-size: 11px; word-break: break-all;">Bot Link: ${botLink}</span>
+                            <div class="btn-group">
+                                <button class="btn-copy" onclick="copyLink('${botLink}')">Copy Link</button>
+                                <button class="btn-edit" onclick="editEpisode('${ep.id}')">Edit</button>
+                                <button class="btn-delete" onclick="deleteEpisode('${ep.id}')">Delete</button>
+                            </div>
                         </div>
-                    </div>
-                `).join('');
+                    `;
+                }).join('');
             } catch (err) {
                 document.getElementById('episodesList').innerHTML = "<p style='color:red;'>Failed to load episodes.</p>";
             }
@@ -131,7 +134,7 @@
 
         function copyLink(url) {
             navigator.clipboard.writeText(url).then(() => {
-                alert("Video link copied to clipboard!");
+                alert("Telegram Bot Link copied to clipboard!");
             }).catch(err => {
                 alert("Failed to copy link.");
             });
