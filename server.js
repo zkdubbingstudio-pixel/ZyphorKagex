@@ -16,6 +16,7 @@ app.get('/', (req, res) => {
     res.send("ZK Dubbing Studio Backend is Live!");
 });
 
+// Fetch all episodes
 app.get('/api/episodes', async (req, res) => {
     try {
         const { data, error } = await supabase.from('episodes').select('*');
@@ -23,6 +24,29 @@ app.get('/api/episodes', async (req, res) => {
         res.json(data);
     } catch (err) {
         res.status(500).json({ error: err.message });
+    }
+});
+
+// Publish a new episode from Admin Panel
+app.post('/api/episodes', async (req, res) => {
+    try {
+        const { animeName, anime_name, episodeNumber, episode_number, title, videoUrl, video_url } = req.body;
+        
+        const episodeId = 'ep_' + Date.now();
+        const insertData = {
+            id: episodeId,
+            anime_name: animeName || anime_name || 'Anime',
+            episode_number: episodeNumber || episode_number || '1',
+            title: title || '',
+            video_url: videoUrl || video_url || ''
+        };
+
+        const { data, error } = await supabase.from('episodes').insert([insertData]);
+        if (error) throw error;
+        
+        res.json({ success: true, message: "Episode published successfully!" });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
     }
 });
 
