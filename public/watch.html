@@ -65,16 +65,19 @@
             object-fit: contain;
         }
 
-        /* Low Brightness Anti-Piracy Floating Watermark */
+        /* Low Brightness Anti-Piracy Floating Watermark with Linear Animation */
         #watermark {
             position: absolute;
-            color: rgba(255, 255, 255, 0.15);
-            font-size: 13px;
+            top: 15px;
+            left: 15px;
+            color: rgba(255, 255, 255, 0.18);
+            font-size: 12px;
             font-weight: bold;
             pointer-events: none;
             z-index: 999;
-            transition: all 2s ease-in-out;
-            text-shadow: 1px 1px 1px rgba(0,0,0,0.5);
+            transition: all 6s linear;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.7);
+            white-space: nowrap;
         }
     </style>
 </head>
@@ -106,26 +109,33 @@
                         const videoUrl = data.videoUrl;
                         const userId = data.userId || "Protected";
                         
-                        // Watermark text set karna
+                        // Set Watermark Text
                         const watermark = document.getElementById('watermark');
                         watermark.innerText = `ID: ${userId} | ZK Dubbing`;
 
-                        // Iframe with full permissions for fullscreen support
+                        // Load Player Iframe / Video
                         if (videoUrl.includes('abyssplayer.com') || videoUrl.includes('embed') || videoUrl.includes('iframe')) {
                             container.innerHTML += `<iframe src="${videoUrl}" allow="fullscreen; autoplay; encrypted-media; picture-in-picture" allowfullscreen webkitallowfullscreen mozallowfullscreen></iframe>`;
                         } else {
                             container.innerHTML += `<video id="videoPlayer" src="${videoUrl}" controls controlsList="nodownload" disablePictureInPicture playsinline webkit-playsinline></video>`;
                         }
 
-                        // Watermark ko screen par random move karwana
-                        setInterval(() => {
-                            const maxX = container.clientWidth - 150;
-                            const maxY = container.clientHeight - 40;
-                            const randomX = Math.floor(Math.random() * maxX);
-                            const randomY = Math.floor(Math.random() * maxY);
+                        // Function for continuous bouncing motion around edges
+                        function moveWatermark() {
+                            const containerWidth = container.clientWidth - 160;
+                            const containerHeight = container.clientHeight - 30;
+
+                            // Randomly pick positions closer to corners and side edges
+                            const randomX = Math.floor(Math.random() * Math.max(10, containerWidth));
+                            const randomY = Math.floor(Math.random() * Math.max(10, containerHeight));
+
                             watermark.style.left = `${Math.max(10, randomX)}px`;
                             watermark.style.top = `${Math.max(10, randomY)}px`;
-                        }, 4000);
+                        }
+
+                        // Start immediate movement and cycle continuously every 6 seconds
+                        moveWatermark();
+                        setInterval(moveWatermark, 6000);
 
                     } else {
                         container.innerHTML = `<h2 style='text-align:center; margin-top:50px; color:red;'>❌ ${data.message || 'Link expired!'}</h2>`;
