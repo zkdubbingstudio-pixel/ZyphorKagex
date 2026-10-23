@@ -2,13 +2,15 @@
 <html lang="hi">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Kitsu Player - ZK Dubbing Studio</title>
     <style>
-        body {
+        html, body {
             margin: 0;
             padding: 0;
-            background-color: #0f0f0f;
+            width: 100%;
+            height: 100%;
+            background-color: #000000;
             color: #ffffff;
             font-family: Arial, sans-serif;
             overflow: hidden;
@@ -16,50 +18,63 @@
             -webkit-user-select: none;
         }
 
+        body {
+            display: flex;
+            flex-direction: column;
+        }
+
         /* Top Navbar with Logo & Name */
         .header-bar {
             display: flex;
             align-items: center;
-            padding: 10px 15px;
+            padding: 8px 12px;
             background: #1a1a1a;
             border-bottom: 1px solid #333;
-            position: relative;
+            flex-shrink: 0;
             z-index: 10;
         }
         .header-bar img {
-            width: 32px;
-            height: 32px;
+            width: 28px;
+            height: 28px;
             border-radius: 50%;
             object-fit: cover;
-            margin-right: 10px;
+            margin-right: 8px;
         }
         .header-bar span {
-            font-size: 16px;
+            font-size: 15px;
             font-weight: bold;
             color: #ffcc00;
         }
 
-        /* Video Container */
+        /* Video Container - Takes remaining full screen space */
         .player-container {
             position: relative;
-            width: 100vw;
-            height: calc(100vh - 53px);
+            width: 100%;
+            flex-grow: 1;
+            background: #000;
             display: flex;
             justify-content: center;
             align-items: center;
-            background: #000;
+            overflow: hidden;
         }
 
-        /* Anti-Piracy Floating Watermark (User ID) */
+        iframe, video {
+            width: 100%;
+            height: 100%;
+            border: none;
+            object-fit: contain;
+        }
+
+        /* Low Brightness Anti-Piracy Floating Watermark */
         #watermark {
             position: absolute;
-            color: rgba(255, 255, 255, 0.4);
-            font-size: 14px;
+            color: rgba(255, 255, 255, 0.15);
+            font-size: 13px;
             font-weight: bold;
             pointer-events: none;
             z-index: 999;
             transition: all 2s ease-in-out;
-            text-shadow: 1px 1px 2px black;
+            text-shadow: 1px 1px 1px rgba(0,0,0,0.5);
         }
     </style>
 </head>
@@ -73,7 +88,7 @@
 
     <!-- Video Player Container -->
     <div class="player-container" id="playerContainer">
-        <div id="watermark">User ID: Loading...</div>
+        <div id="watermark">ID: Loading...</div>
     </div>
 
     <script>
@@ -91,25 +106,25 @@
                         const videoUrl = data.videoUrl;
                         const userId = data.userId || "Protected";
                         
-                        // Set Watermark Text
+                        // Watermark text set karna
                         const watermark = document.getElementById('watermark');
                         watermark.innerText = `ID: ${userId} | ZK Dubbing`;
 
-                        // Check if link is an embed/iframe player (like AbyssPlayer) or direct video file
+                        // Iframe ya Video player load karna
                         if (videoUrl.includes('abyssplayer.com') || videoUrl.includes('embed') || videoUrl.includes('iframe')) {
-                            container.innerHTML += `<iframe src="${videoUrl}" style="width:100%; height:100%; border:none;" allowfullscreen></iframe>`;
+                            container.innerHTML += `<iframe src="${videoUrl}" allowfullscreen></iframe>`;
                         } else {
-                            container.innerHTML += `<video id="videoPlayer" src="${videoUrl}" controls controlsList="nodownload" disablePictureInPicture style="width:100%; height:100%; object-fit:contain;"></video>`;
+                            container.innerHTML += `<video id="videoPlayer" src="${videoUrl}" controls controlsList="nodownload" disablePictureInPicture></video>`;
                         }
 
-                        // Move watermark randomly to secure against screen recording
+                        // Watermark ko screen par random move karwana
                         setInterval(() => {
-                            const maxX = window.innerWidth - 150;
-                            const maxY = window.innerHeight - 50;
+                            const maxX = container.clientWidth - 150;
+                            const maxY = container.clientHeight - 40;
                             const randomX = Math.floor(Math.random() * maxX);
                             const randomY = Math.floor(Math.random() * maxY);
-                            watermark.style.left = `${randomX}px`;
-                            watermark.style.top = `${randomY}px`;
+                            watermark.style.left = `${Math.max(10, randomX)}px`;
+                            watermark.style.top = `${Math.max(10, randomY)}px`;
                         }, 4000);
 
                     } else {
