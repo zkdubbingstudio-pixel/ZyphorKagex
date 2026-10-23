@@ -83,14 +83,12 @@
     </div>
 
     <script>
-        // URL se token nikalna
         const urlParams = new URLSearchParams(window.location.search);
         const token = urlParams.get('token');
 
         if (!token) {
             document.body.innerHTML = "<h2 style='text-align:center; margin-top:50px; color:red;'>⚠️ Invalid or Expired Link!</h2>";
         } else {
-            // Render backend se token verify karke video URL aur User ID fetch karna
             fetch(`https://zyphorkagex.onrender.com/api/verify-token?token=${token}`)
                 .then(res => res.json())
                 .then(data => {
@@ -98,12 +96,12 @@
                         const videoPlayer = document.getElementById('videoPlayer');
                         videoPlayer.src = data.videoUrl;
                         
-                        // User ID watermark set karna
+                        // Set User ID Watermark dynamically
                         const userId = data.userId || "Protected";
                         const watermark = document.getElementById('watermark');
                         watermark.innerText = `ID: ${userId} | ZK Dubbing`;
 
-                        // Watermark ko screen par random move karwana taaki screen recording ya screenshot secure rahe
+                        // Move watermark randomly every 4 seconds to prevent screen recording theft
                         setInterval(() => {
                             const maxX = window.innerWidth - 150;
                             const maxY = window.innerHeight - 50;
@@ -121,14 +119,6 @@
                     document.body.innerHTML = "<h2 style='text-align:center; margin-top:50px; color:red;'>❌ Server Error!</h2>";
                 });
         }
-
-        // Screenshot / Recording warning or detection tricks
-        document.addEventListener('keyup', (e) => {
-            if (e.key == 'PrintScreen') {
-                navigator.clipboard.writeText('');
-                alert('Screenshot is restricted by ZK Dubbing Studio!');
-            }
-        });
     </script>
 </body>
 </html>
