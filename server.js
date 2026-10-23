@@ -59,6 +59,58 @@ app.post('/api/publish-episode', async (req, res) => {
     }
 });
 
+// Get all episodes for Admin Panel List
+app.get('/api/episodes', async (req, res) => {
+    try {
+        const { data, error } = await supabase
+            .from('episodes')
+            .select('*')
+            .order('episode_number', { ascending: true });
+
+        if (error) return res.status(400).json({ success: false, message: error.message });
+        res.json({ success: true, episodes: data });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// Update Episode API Route
+app.put('/api/update-episode', async (req, res) => {
+    const { id, animeName, episodeNumber, title, videoUrl } = req.body;
+    try {
+        const { error } = await supabase
+            .from('episodes')
+            .update({
+                anime_name: animeName,
+                episode_number: episodeNumber,
+                title: title || '',
+                video_url: videoUrl
+            })
+            .eq('id', id);
+
+        if (error) return res.status(400).json({ success: false, message: error.message });
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// Delete Episode API Route
+app.delete('/api/delete-episode', async (req, res) => {
+    const { id } = req.query;
+    try {
+        const { error } = await supabase
+            .from('episodes')
+            .delete()
+            .eq('id', id);
+
+        if (error) return res.status(400).json({ success: false, message: error.message });
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
 // Token Generate API Route
 app.get('/api/get-watch-token', async (req, res) => {
     const { episodeId, userId } = req.query;
@@ -80,9 +132,8 @@ app.get('/api/get-watch-token', async (req, res) => {
         }
 
         const token = `tok_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-        const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // 15 Minutes Expiry
+        const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // 15 Mins Expiry
 
-        // Save Token in Supabase with Error Check
         const { error: insertError } = await supabase.from('episode_tokens').insert([
             {
                 token: token,
@@ -117,7 +168,6 @@ app.get('/api/validate-token', async (req, res) => {
     if (!token) return res.json({ success: false, message: "Token missing" });
 
     try {
-        // 1. Fetch token data
         const { data: tokData, error: tokError } = await supabase
             .from('episode_tokens')
             .select('*')
@@ -129,17 +179,14 @@ app.get('/api/validate-token', async (req, res) => {
             return res.json({ success: false, message: "Invalid or expired link!" });
         }
 
-        // 2. Expiry check
         if (new Date() > new Date(tokData.expires_at)) {
             return res.json({ success: false, message: "⏰ Link expired! Please get a new link from channel." });
         }
 
-        // 3. Max use check
         if (tokData.uses_count >= tokData.max_uses) {
             return res.json({ success: false, message: "🚫 Limit exceeded! Please request a new link." });
         }
 
-        // 4. Fetch episode details
         const { data: episode, error: epError } = await supabase
             .from('episodes')
             .select('*')
@@ -151,7 +198,6 @@ app.get('/api/validate-token', async (req, res) => {
             return res.json({ success: false, message: "Episode associated with token not found!" });
         }
 
-        // 5. Increment usage count
         await supabase
             .from('episode_tokens')
             .update({ uses_count: tokData.uses_count + 1 })
