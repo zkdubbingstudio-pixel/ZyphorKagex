@@ -38,27 +38,46 @@
             border-radius: 4px;
             box-sizing: border-box;
         }
-        button {
+        button.submit-btn {
             background: #0088cc;
             font-weight: bold;
             cursor: pointer;
         }
-        button:hover {
+        button.submit-btn:hover {
             background: #006699;
         }
         .episode-item {
             background: #222;
-            padding: 10px;
-            margin-top: 8px;
-            border-radius: 4px;
+            padding: 12px;
+            margin-top: 10px;
+            border-radius: 6px;
             border-left: 4px solid #ffcc00;
         }
+        .btn-group {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+        }
+        .btn-group button {
+            flex: 1;
+            padding: 7px;
+            font-size: 12px;
+            margin: 0;
+            cursor: pointer;
+            border-radius: 4px;
+            border: none;
+            font-weight: bold;
+        }
+        .btn-copy { background: #28a745; color: #fff; }
+        .btn-edit { background: #ffc107; color: #000; }
+        .btn-delete { background: #dc3545; color: #fff; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h2>🎬 Kitsu Admin Panel</h2>
+        <h2 id="formTitle">🎬 Publish Episode</h2>
         <form id="episodeForm">
+            <input type="hidden" id="editEpisodeId">
             <label>Anime Name:</label>
             <input type="text" id="animeName" required placeholder="Anime Name">
             
@@ -71,7 +90,8 @@
             <label>Video Stream URL / File Path:</label>
             <input type="text" id="videoUrl" required placeholder="https://fembed.co/embed/...">
             
-            <button type="submit">Publish Episode</button>
+            <button type="submit" class="submit-btn" id="submitBtn">Publish Episode</button>
+            <button type="button" id="cancelBtn" style="background:#555; display:none;" onclick="resetForm()">Cancel Edit</button>
         </form>
 
         <h3 style="margin-top: 30px; border-bottom: 1px solid #444; padding-bottom: 5px;">📁 Published Episodes List</h3>
@@ -79,22 +99,29 @@
     </div>
 
     <script>
+        let allEpisodes = [];
+
         async function fetchEpisodes() {
             try {
                 const res = await fetch('/api/episodes');
-                const episodes = await res.json();
+                allEpisodes = await res.json();
                 const listDiv = document.getElementById('episodesList');
                 
-                if (!episodes || episodes.length === 0) {
+                if (!allEpisodes || allEpisodes.length === 0) {
                     listDiv.innerHTML = "<p>No episodes published yet.</p>";
                     return;
                 }
 
-                listDiv.innerHTML = episodes.map(ep => `
+                listDiv.innerHTML = allEpisodes.map(ep => `
                     <div class="episode-item">
                         <strong>${ep.anime_name} - Ep ${ep.episode_number}</strong><br>
                         <small style="color: #aaa;">${ep.title || 'No title'}</small><br>
                         <span style="color: #00aaee; font-size: 11px; word-break: break-all;">${ep.video_url}</span>
+                        <div class="btn-group">
+                            <button class="btn-copy" onclick="copyLink('${ep.video_url}')">Copy Link</button>
+                            <button class="btn-edit" onclick="editEpisode('${ep.id}')">Edit</button>
+                            <button class="btn-delete" onclick="deleteEpisode('${ep.id}')">Delete</button>
+                        </div>
                     </div>
                 `).join('');
             } catch (err) {
@@ -102,29 +129,80 @@
             }
         }
 
+        function copyLink(url) {
+            navigator.clipboard.writeText(url).then(() => {
+                alert("Video link copied to clipboard!");
+            }).catch(err => {
+                alert("Failed to copy link.");
+            });
+        }
+
+        function editEpisode(id) {
+            const ep = allEpisodes.find(e => e.id === id);
+            if (!ep) return;
+            document.getElementById('editEpisodeId').value = ep.id;
+            document.getElementById('animeName').value = ep.anime_name;
+            document.getElementById('episodeNumber').value = ep.episode_number;
+            document.getElementById('title').value = ep.title || '';
+            document.getElementById('videoUrl').value = ep.video_url;
+            
+            document.getElementById('formTitle').innerText = "✏️ Edit Episode";
+            document.getElementById('submitBtn').innerText = "Update Episode";
+            document.getElementById('cancelBtn').style.display = "block";
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function resetForm() {
+            document.getElementById('episodeForm').reset();
+            document.getElementById('editEpisodeId').value = '';
+            document.getElementById('formTitle').innerText = "🎬 Publish Episode";
+            document.getElementById('submitBtn').innerText = "Publish Episode";
+            document.getElementById('cancelBtn').style.display = "none";
+        }
+
+        async function deleteEpisode(id) {
+            if (!confirm("Are you sure you want to delete this episode?")) return;
+            try {
+                const res = await fetch(`/api/episodes/${id}`, { method: 'DELETE' });
+                const data = await res.json();
+                if (data.success) {
+                    alert("Episode deleted successfully!");
+                    fetchEpisodes();
+                } else {
+                    alert("Error: " + (data.error || "Delete failed"));
+                }
+            } catch (err) {
+                alert("Server error during delete!");
+            }
+        }
+
         document.getElementById('episodeForm').addEventListener('submit', async (e) => {
             e.preventDefault();
+            const editId = document.getElementById('editEpisodeId').value;
             const animeName = document.getElementById('animeName').value;
             const episodeNumber = document.getElementById('episodeNumber').value;
             const title = document.getElementById('title').value;
             const videoUrl = document.getElementById('videoUrl').value;
 
+            const url = editId ? `/api/episodes/${editId}` : '/api/episodes';
+            const method = editId ? 'PUT' : 'POST';
+
             try {
-                const res = await fetch('/api/episodes', {
-                    method: 'POST',
+                const res = await fetch(url, {
+                    method: method,
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ animeName, episodeNumber, title, videoUrl })
                 });
                 const data = await res.json();
                 if (data.success) {
-                    alert("Episode published successfully!");
-                    document.getElementById('episodeForm').reset();
+                    alert(editId ? "Episode updated successfully!" : "Episode published successfully!");
+                    resetForm();
                     fetchEpisodes();
                 } else {
-                    alert("Error: " + (data.error || "Publish failed"));
+                    alert("Error: " + (data.error || "Operation failed"));
                 }
             } catch (err) {
-                alert("Server error during publish!");
+                alert("Server error!");
             }
         });
 
