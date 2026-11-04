@@ -1,6 +1,5 @@
 const express = require('express');
 const crypto = require('crypto');
-const fetch = require('node-fetch');
 const path = require('path');
 
 const app = express();
@@ -25,7 +24,7 @@ app.get('/api/get-watch-token', async (req, res) => {
         }
 
         const token = crypto.randomBytes(16).toString('hex');
-        const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString(); // 5 minutes expiry
+        const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
 
         const payload = {
             token: token,
@@ -70,7 +69,6 @@ app.get('/api/verify-token', async (req, res) => {
             "Authorization": `Bearer ${SUPABASE_KEY}`
         };
 
-        // Fetch token details from Supabase
         const fetchRes = await fetch(`${SUPABASE_URL}/rest/v1/episode_tokens?token=eq.${token}&select=*`, { headers });
         const data = await fetchRes.json();
 
@@ -82,17 +80,17 @@ app.get('/api/verify-token', async (req, res) => {
         const uses = tokenData.uses || 0;
         const expiresAt = new Date(tokenData.expires_at);
 
-        // Check if already used (Single-Use check)
+        // Single-use check
         if (uses >= 1) {
             return res.status(400).json({ success: false, message: "Yeh link pehle hi use ho chuki hai aur ab expire ho gayi hai!" });
         }
 
-        // Check expiry time
+        // Expiry check
         if (new Date() > expiresAt) {
             return res.status(400).json({ success: false, message: "Token time expired!" });
         }
 
-        // Immediately increment uses to 1 so it can never be reused
+        // Increment uses to 1 immediately
         await fetch(`${SUPABASE_URL}/rest/v1/episode_tokens?token=eq.${token}`, {
             method: 'PATCH',
             headers: {
