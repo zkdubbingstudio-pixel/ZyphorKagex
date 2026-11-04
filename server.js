@@ -13,7 +13,48 @@ app.get('/', (req, res) => {
     res.send("Render Backend & Stream Server is Active!");
 });
 
-// Layer 3: 5-Minutes Expiry & Layer 1: User-Lock Generation
+// 1. Get all published episodes for Admin Panel
+app.get('/api/episodes', async (req, res) => {
+    try {
+        const headers = {
+            "apikey": SUPABASE_KEY,
+            "Authorization": `Bearer ${SUPABASE_KEY}`
+        };
+        const response = await fetch(`${SUPABASE_URL}/rest/v1/episodes?select=*&order=created_at.desc`, { headers });
+        const data = await response.json();
+        res.json(data);
+    } catch (error) {
+        res.status(500).json({ success: [], message: error.message });
+    }
+});
+
+// 2. Publish new episode endpoint
+app.post('/api/publish-episode', async (req, res) => {
+    try {
+        const { id, anime_name, episode_number, title, video_url } = req.body;
+        const headers = {
+            "apikey": SUPABASE_KEY,
+            "Authorization": `Bearer ${SUPABASE_KEY}`,
+            "Content-Type": "application/json",
+            "Prefer": "return=minimal"
+        };
+        const response = await fetch(`${SUPABASE_URL}/rest/v1/episodes`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ id, anime_name, episode_number, title, video_url })
+        });
+        if (response.ok) {
+            res.json({ success: true, message: "Episode published successfully!" });
+        } else {
+            const err = await response.text();
+            res.status(500).json({ success: false, message: err });
+        }
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// 3. Token Generate Endpoint
 app.get('/api/get-watch-token', async (req, res) => {
     try {
         const episodeId = req.query.episodeId;
@@ -24,7 +65,7 @@ app.get('/api/get-watch-token', async (req, res) => {
         }
 
         const token = crypto.randomBytes(16).toString('hex');
-        const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString(); // 5 min expiry
+        const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
 
         const payload = {
             token: token,
@@ -56,7 +97,7 @@ app.get('/api/get-watch-token', async (req, res) => {
     }
 });
 
-// Layer 1 (User-Lock), Layer 2 (Single-Use), & Layer 3 (Expiry Check) Verification
+// 4. Token Verify Endpoint (User-Lock & Single-Use Enforcement)
 app.get('/api/verify-token', async (req, res) => {
     try {
         const token = req.query.token;
@@ -83,27 +124,25 @@ app.get('/api/verify-token', async (req, res) => {
         const expiresAt = new Date(tokenData.expires_at);
         const originalUserId = String(tokenData.user_id);
 
-        // 🔒 LAYER 1: USER-LOCK CHECK (Agar doosra banda link khole)
+        // 🔒 USER-LOCK CHECK
         if (incomingUserId && incomingUserId !== "" && incomingUserId !== "undefined" && incomingUserId !== originalUserId) {
             return res.status(400).json({ success: false, message: "Yeh link kisi aur user ke liye generate ki gayi hai! Aap ise use nahi kar sakte." });
         }
 
-        // 🔒 LAYER 2: SINGLE-USE CHECK (Agar pehle use ho chuki ho)
+        // Single-use check
         if (uses >= 1) {
             return res.status(400).json({ success: false, message: "Yeh link pehle hi use ho chuki hai aur ab expire ho gayi hai!" });
         }
 
-        // 🔒 LAYER 3: EXPIRY TIME CHECK (5 minute se zyada ho gaya ho)
+        // Expiry check
         if (new Date() > expiresAt) {
             return res.status(400).json({ success: false, message: "Token time expired!" });
         }
 
-        // Fetch video URL
         const epRes = await fetch(`${SUPABASE_URL}/rest/v1/episodes?id=eq.${tokenData.episode_id}&select=video_url`, { headers });
         const epData = await epRes.json();
         const videoUrl = (epData && epData.length > 0) ? epData[0].video_url : "";
 
-        // Mark as used immediately (Increment uses to 1)
         await fetch(`${SUPABASE_URL}/rest/v1/episode_tokens?token=eq.${token}`, {
             method: 'PATCH',
             headers: {
