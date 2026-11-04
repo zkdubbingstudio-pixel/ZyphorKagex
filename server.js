@@ -60,7 +60,7 @@ app.get('/api/get-watch-token', async (req, res) => {
 app.get('/api/verify-token', async (req, res) => {
     try {
         const token = req.query.token;
-        const incomingUserId = req.query.userId; // Frontend se aaya hua User ID
+        const incomingUserId = req.query.userId;
 
         if (!token) {
             return res.status(400).json({ success: false, message: "Token missing" });
@@ -84,7 +84,7 @@ app.get('/api/verify-token', async (req, res) => {
         const originalUserId = String(tokenData.user_id);
 
         // 🔒 USER-LOCK CHECK: Agar koi doosra user link khole ya normal browser mein khole
-        if (incomingUserId && String(incomingUserId) !== originalUserId) {
+        if (incomingUserId && incomingUserId !== "" && incomingUserId !== "undefined" && incomingUserId !== originalUserId) {
             return res.status(400).json({ success: false, message: "Yeh link kisi aur user ke liye generate ki gayi hai! Aap ise use nahi kar sakte." });
         }
 
@@ -98,7 +98,12 @@ app.get('/api/verify-token', async (req, res) => {
             return res.status(400).json({ success: false, message: "Token time expired!" });
         }
 
-        // Increment uses to 1 immediately
+        // Fetch video_url from episodes table using episode_id
+        const epRes = await fetch(`${SUPABASE_URL}/rest/v1/episodes?id=eq.${tokenData.episode_id}&select=video_url`, { headers });
+        const epData = await epRes.json();
+        const videoUrl = (epData && epData.length > 0) ? epData[0].video_url : "";
+
+        // Immediately increment uses to 1
         await fetch(`${SUPABASE_URL}/rest/v1/episode_tokens?token=eq.${token}`, {
             method: 'PATCH',
             headers: {
@@ -111,7 +116,8 @@ app.get('/api/verify-token', async (req, res) => {
         return res.json({
             success: true,
             episodeId: tokenData.episode_id,
-.           userId: tokenData.user_id
+            userId: tokenData.user_id,
+            videoUrl: videoUrl
         });
 
     } catch (error) {
