@@ -56,10 +56,12 @@ app.get('/api/get-watch-token', async (req, res) => {
     }
 });
 
-// 2. Token Verify Endpoint (Single-Use Enforcement)
+// 2. Token Verify Endpoint (User-Lock & Single-Use Enforcement)
 app.get('/api/verify-token', async (req, res) => {
     try {
         const token = req.query.token;
+        const incomingUserId = req.query.userId; // Frontend se aaya hua User ID
+
         if (!token) {
             return res.status(400).json({ success: false, message: "Token missing" });
         }
@@ -79,6 +81,12 @@ app.get('/api/verify-token', async (req, res) => {
         const tokenData = data[0];
         const uses = tokenData.uses || 0;
         const expiresAt = new Date(tokenData.expires_at);
+        const originalUserId = String(tokenData.user_id);
+
+        // 🔒 USER-LOCK CHECK: Agar koi doosra user link khole ya normal browser mein khole
+        if (incomingUserId && String(incomingUserId) !== originalUserId) {
+            return res.status(400).json({ success: false, message: "Yeh link kisi aur user ke liye generate ki gayi hai! Aap ise use nahi kar sakte." });
+        }
 
         // Single-use check
         if (uses >= 1) {
@@ -103,7 +111,7 @@ app.get('/api/verify-token', async (req, res) => {
         return res.json({
             success: true,
             episodeId: tokenData.episode_id,
-            userId: tokenData.user_id
+.           userId: tokenData.user_id
         });
 
     } catch (error) {
