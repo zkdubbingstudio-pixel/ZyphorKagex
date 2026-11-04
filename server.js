@@ -1,148 +1,119 @@
 const express = require('express');
-const { createClient } = require('@supabase/supabase-js');
-const cors = require('cors');
 const crypto = require('crypto');
+const fetch = require('node-fetch');
 const path = require('path');
 
 const app = express();
-app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_KEY;
-const supabase = createClient(supabaseUrl, supabaseKey);
-
-app.get('/admin', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'admin.html'));
-});
-
-app.get('/watch', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'watch.html'));
-});
+const SUPABASE_URL = "https://knefbynsdhgjuhlklyvu.supabase.co";
+const SUPABASE_KEY = "sb_publishable_tZxPCR45AXkjm73Fq81YAQ_VHEsGZVJ";
 
 app.get('/', (req, res) => {
-    res.send("ZK Dubbing Studio Backend is Live!");
+    res.send("Render Backend & Stream Server is Active!");
 });
 
-// Fetch all episodes
-app.get('/api/episodes', async (req, res) => {
-    try {
-        const { data, error } = await supabase.from('episodes').select('*');
-        if (error) throw error;
-        res.json(data);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// Publish a new episode
-app.post('/api/episodes', async (req, res) => {
-    try {
-        const { animeName, episodeNumber, title, videoUrl } = req.body;
-        const episodeId = 'ep_' + Date.now();
-        const insertData = {
-            id: episodeId,
-            anime_name: animeName || 'Anime',
-            episode_number: episodeNumber || '1',
-            title: title || '',
-            video_url: videoUrl || ''
-        };
-
-        const { error } = await supabase.from('episodes').insert([insertData]);
-        if (error) throw error;
-        
-        res.json({ success: true, message: "Episode published successfully!", episodeId: episodeId });
-    } catch (err) {
-        res.status(500).json({ success: false, error: err.message });
-    }
-});
-
-// Update an existing episode
-app.put('/api/episodes/:id', async (req, res) => {
-    try {
-        const { id } = req.params;
-        const { animeName, episodeNumber, title, videoUrl } = req.body;
-        
-        const { error } = await supabase.from('episodes').update({
-            anime_name: animeName,
-            episode_number: episodeNumber,
-            title: title,
-            video_url: videoUrl
-        }).eq('id', id);
-
-        if (error) throw error;
-        res.json({ success: true, message: "Episode updated successfully!" });
-    } catch (err) {
-        res.status(500).json({ success: false, error: err.message });
-    }
-});
-
-// Delete an episode
-app.delete('/api/episodes/:id', async (req, res) => {
-    try {
-        const { id } = req.params;
-        const { error } = await supabase.from('episodes').delete().eq('id', id);
-        if (error) throw error;
-        res.json({ success: true, message: "Episode deleted successfully!" });
-    } catch (err) {
-        res.status(500).json({ success: false, error: err.message });
-    }
-});
-
+// 1. Token Generate Endpoint
 app.get('/api/get-watch-token', async (req, res) => {
-    const { episodeId, userId } = req.query;
-    if (!episodeId || !userId) {
-        return res.json({ success: false, message: "Missing episodeId or userId" });
-    }
     try {
-        const { data: epData, error: epError } = await supabase.from('episodes').select('*').eq('id', episodeId);
-        if (epError || !epData.length) {
-            return res.json({ success: false, message: "Episode not found." });
+        const episodeId = req.query.episodeId;
+        const userId = req.query.userId;
+
+        if (!episodeId || !userId) {
+            return res.status(400).json({ success: false, message: "Missing parameters" });
         }
 
         const token = crypto.randomBytes(16).toString('hex');
-        const { error: insertError } = await supabase.from('episode_tokens').insert([
-            { token: token, episode_id: episodeId, user_id: String(userId) }
-        ]);
+        const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString(); // 5 minutes expiry
 
-        if (insertError) {
-            return res.json({ success: false, message: "DB Insert failed: " + insertError.message });
-        }
+        const payload = {
+            token: token,
+            episode_id: episodeId,
+            user_id: String(userId),
+            uses: 0,
+            expires_at: expiresAt
+        };
 
-        res.json({ success: true, token: token });
-    } catch (err) {
-        res.json({ success: false, message: err.message });
-    }
-});
-
-app.get('/api/verify-token', async (req, res) => {
-    const { token } = req.query;
-    if (!token) {
-        return res.json({ success: false, message: "Token missing" });
-    }
-    try {
-        const { data: tokenData, error: tokenError } = await supabase.from('episode_tokens').select('*').eq('token', token);
-        if (tokenError || !tokenData.length) {
-            return res.json({ success: false, message: "Invalid or expired token!" });
-        }
-
-        const tRecord = tokenData[0];
-        const { data: epData, error: epError } = await supabase.from('episodes').select('*').eq('id', tRecord.episode_id);
-        if (epError || !epData.length) {
-            return res.json({ success: false, message: "Episode not found!" });
-        }
-
-        const episode = epData[0];
-        res.json({
-            success: true,
-            videoUrl: episode.video_url,
-            userId: tRecord.user_id
+        const response = await fetch(`${SUPABASE_URL}/rest/v1/episode_tokens`, {
+            method: 'POST',
+            headers: {
+                "apikey": SUPABASE_KEY,
+                "Authorization": `Bearer ${SUPABASE_KEY}`,
+                "Content-Type": "application/json",
+                "Prefer": "return=minimal"
+            },
+            body: JSON.stringify(payload)
         });
-    } catch (err) {
-        res.json({ success: false, message: err.message });
+
+        if (response.ok) {
+            return res.json({ success: true, token: token });
+        } else {
+            const errText = await response.text();
+            return res.status(500).json({ success: false, message: "Database error: " + errText });
+        }
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
     }
 });
 
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+// 2. Token Verify Endpoint (Single-Use Enforcement)
+app.get('/api/verify-token', async (req, res) => {
+    try {
+        const token = req.query.token;
+        if (!token) {
+            return res.status(400).json({ success: false, message: "Token missing" });
+        }
+
+        const headers = {
+            "apikey": SUPABASE_KEY,
+            "Authorization": `Bearer ${SUPABASE_KEY}`
+        };
+
+        // Fetch token details from Supabase
+        const fetchRes = await fetch(`${SUPABASE_URL}/rest/v1/episode_tokens?token=eq.${token}&select=*`, { headers });
+        const data = await fetchRes.json();
+
+        if (!data || !Array.isArray(data) || data.length === 0) {
+            return res.status(400).json({ success: false, message: "Invalid or expired token!" });
+        }
+
+        const tokenData = data[0];
+        const uses = tokenData.uses || 0;
+        const expiresAt = new Date(tokenData.expires_at);
+
+        // Check if already used (Single-Use check)
+        if (uses >= 1) {
+            return res.status(400).json({ success: false, message: "Yeh link pehle hi use ho chuki hai aur ab expire ho gayi hai!" });
+        }
+
+        // Check expiry time
+        if (new Date() > expiresAt) {
+            return res.status(400).json({ success: false, message: "Token time expired!" });
+        }
+
+        // Immediately increment uses to 1 so it can never be reused
+        await fetch(`${SUPABASE_URL}/rest/v1/episode_tokens?token=eq.${token}`, {
+            method: 'PATCH',
+            headers: {
+                ...headers,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ uses: uses + 1 })
+        });
+
+        return res.json({
+            success: true,
+            episodeId: tokenData.episode_id,
+            userId: tokenData.user_id
+        });
+
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+});
