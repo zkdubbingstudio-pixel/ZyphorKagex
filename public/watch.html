@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Kitsu Player - ZK Dubbing Studio</title>
+    <!-- Telegram WebApp Script -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         html, body {
             margin: 0;
@@ -23,7 +25,6 @@
             flex-direction: column;
         }
 
-        /* Top Navbar with Logo & Name */
         .header-bar {
             display: flex;
             align-items: center;
@@ -46,7 +47,6 @@
             color: #ffcc00;
         }
 
-        /* Video Container */
         .player-container {
             position: relative;
             width: 100%;
@@ -65,7 +65,6 @@
             object-fit: contain;
         }
 
-        /* Low Brightness Anti-Piracy Floating Watermark with Linear Animation */
         #watermark {
             position: absolute;
             top: 15px;
@@ -83,18 +82,21 @@
 </head>
 <body oncontextmenu="return false;">
 
-    <!-- Top Header with Logo and Studio Name -->
     <div class="header-bar">
         <img src="https://i.ibb.co/2Yp3CDq9/file-000000006f2c8211b20c6bedc9f9ac12.png" alt="ZK Logo">
         <span>ZK Dubbing Studio</span>
     </div>
 
-    <!-- Video Player Container -->
     <div class="player-container" id="playerContainer">
         <div id="watermark">ID: Loading...</div>
     </div>
 
     <script>
+        // Telegram WebApp se User ID nikalein
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+        const telegramUserId = tg.initDataUnsafe?.user?.id || '';
+
         const urlParams = new URLSearchParams(window.location.search);
         const token = urlParams.get('token');
         const container = document.getElementById('playerContainer');
@@ -102,43 +104,39 @@
         if (!token) {
             container.innerHTML = "<h2 style='text-align:center; margin-top:50px; color:red;'>⚠️ Invalid or Expired Link!</h2>";
         } else {
-            fetch(`https://zyphorkagex.onrender.com/api/verify-token?token=${token}`)
+            // Token ke sath userId bhi bhejen taaki user-lock verify ho sake
+            fetch(`https://zyphorkagex.onrender.com/api/verify-token?token=${token}&userId=${telegramUserId}`)
                 .then(res => res.json())
                 .then(data => {
                     if (data.success) {
                         const videoUrl = data.videoUrl;
-                        const userId = data.userId || "Protected";
+                        const userId = data.userId || telegramUserId || "Protected";
                         
-                        // Set Watermark Text
                         const watermark = document.getElementById('watermark');
                         watermark.innerText = `ID: ${userId} | ZK Dubbing`;
 
-                        // Load Player Iframe / Video
-                        if (videoUrl.includes('abyssplayer.com') || videoUrl.includes('embed') || videoUrl.includes('iframe')) {
+                        if (videoUrl && (videoUrl.includes('abyssplayer.com') || videoUrl.includes('embed') || videoUrl.includes('iframe'))) {
                             container.innerHTML += `<iframe src="${videoUrl}" allow="fullscreen; autoplay; encrypted-media; picture-in-picture" allowfullscreen webkitallowfullscreen mozallowfullscreen></iframe>`;
-                        } else {
+                        } else if (videoUrl) {
                             container.innerHTML += `<video id="videoPlayer" src="${videoUrl}" controls controlsList="nodownload" disablePictureInPicture playsinline webkit-playsinline></video>`;
+                        } else {
+                            container.innerHTML = "<h2 style='text-align:center; margin-top:50px; color:red;'>❌ Video link not found in database!</h2>";
                         }
 
-                        // Function for continuous bouncing motion around edges
                         function moveWatermark() {
                             const containerWidth = container.clientWidth - 160;
                             const containerHeight = container.clientHeight - 30;
-
-                            // Randomly pick positions closer to corners and side edges
                             const randomX = Math.floor(Math.random() * Math.max(10, containerWidth));
                             const randomY = Math.floor(Math.random() * Math.max(10, containerHeight));
-
                             watermark.style.left = `${Math.max(10, randomX)}px`;
                             watermark.style.top = `${Math.max(10, randomY)}px`;
                         }
 
-                        // Start immediate movement and cycle continuously every 6 seconds
                         moveWatermark();
                         setInterval(moveWatermark, 6000);
 
                     } else {
-                        container.innerHTML = `<h2 style='text-align:center; margin-top:50px; color:red;'>❌ ${data.message || 'Link expired!'}</h2>`;
+                        container.innerHTML = `<h2 style='text-align:center; margin-top:50px; color:red; padding: 20px;'>❌ ${data.message || 'Link expired!'}</h2>`;
                     }
                 })
                 .catch(err => {
