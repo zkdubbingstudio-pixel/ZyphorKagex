@@ -13,7 +13,7 @@ app.get('/', (req, res) => {
     res.send("Render Backend & Stream Server is Active!");
 });
 
-// 1. Token Generate Endpoint
+// Layer 3: 5-Minutes Expiry & Layer 1: User-Lock Generation
 app.get('/api/get-watch-token', async (req, res) => {
     try {
         const episodeId = req.query.episodeId;
@@ -24,7 +24,7 @@ app.get('/api/get-watch-token', async (req, res) => {
         }
 
         const token = crypto.randomBytes(16).toString('hex');
-        const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+        const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString(); // 5 min expiry
 
         const payload = {
             token: token,
@@ -56,7 +56,7 @@ app.get('/api/get-watch-token', async (req, res) => {
     }
 });
 
-// 2. Token Verify Endpoint (User-Lock & Single-Use Enforcement)
+// Layer 1 (User-Lock), Layer 2 (Single-Use), & Layer 3 (Expiry Check) Verification
 app.get('/api/verify-token', async (req, res) => {
     try {
         const token = req.query.token;
@@ -83,27 +83,27 @@ app.get('/api/verify-token', async (req, res) => {
         const expiresAt = new Date(tokenData.expires_at);
         const originalUserId = String(tokenData.user_id);
 
-        // 🔒 USER-LOCK CHECK: Agar koi doosra user link khole ya normal browser mein khole
+        // 🔒 LAYER 1: USER-LOCK CHECK (Agar doosra banda link khole)
         if (incomingUserId && incomingUserId !== "" && incomingUserId !== "undefined" && incomingUserId !== originalUserId) {
             return res.status(400).json({ success: false, message: "Yeh link kisi aur user ke liye generate ki gayi hai! Aap ise use nahi kar sakte." });
         }
 
-        // Single-use check
+        // 🔒 LAYER 2: SINGLE-USE CHECK (Agar pehle use ho chuki ho)
         if (uses >= 1) {
             return res.status(400).json({ success: false, message: "Yeh link pehle hi use ho chuki hai aur ab expire ho gayi hai!" });
         }
 
-        // Expiry check
+        // 🔒 LAYER 3: EXPIRY TIME CHECK (5 minute se zyada ho gaya ho)
         if (new Date() > expiresAt) {
             return res.status(400).json({ success: false, message: "Token time expired!" });
         }
 
-        // Fetch video_url from episodes table using episode_id
+        // Fetch video URL
         const epRes = await fetch(`${SUPABASE_URL}/rest/v1/episodes?id=eq.${tokenData.episode_id}&select=video_url`, { headers });
         const epData = await epRes.json();
         const videoUrl = (epData && epData.length > 0) ? epData[0].video_url : "";
 
-        // Immediately increment uses to 1
+        // Mark as used immediately (Increment uses to 1)
         await fetch(`${SUPABASE_URL}/rest/v1/episode_tokens?token=eq.${token}`, {
             method: 'PATCH',
             headers: {
