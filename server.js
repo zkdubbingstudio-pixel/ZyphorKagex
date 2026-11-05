@@ -56,7 +56,57 @@ app.post('/api/publish-episode', async (req, res) => {
     }
 });
 
-// 3. Token Generate Endpoint
+// 3. Episode Update (Edit) Endpoint
+app.put('/api/update-episode/:id', async (req, res) => {
+    try {
+        const episodeId = req.params.id;
+        const { anime_name, episode_number, title, video_url, ad_link } = req.body;
+        const headers = {
+            "apikey": SUPABASE_KEY,
+            "Authorization": `Bearer ${SUPABASE_KEY}`,
+            "Content-Type": "application/json",
+            "Prefer": "return=minimal"
+        };
+        const response = await fetch(`${SUPABASE_URL}/rest/v1/episodes?id=eq.${episodeId}`, {
+            method: 'PATCH',
+            headers,
+            body: JSON.stringify({ anime_name, episode_number, title, video_url, ad_link })
+        });
+        if (response.ok) {
+            res.json({ success: true, message: "Episode updated successfully!" });
+        } else {
+            const err = await response.text();
+            res.status(500).json({ success: false, message: err });
+        }
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// 4. Episode Delete Endpoint
+app.delete('/api/delete-episode/:id', async (req, res) => {
+    try {
+        const episodeId = req.params.id;
+        const headers = {
+            "apikey": SUPABASE_KEY,
+            "Authorization": `Bearer ${SUPABASE_KEY}`
+        };
+        const response = await fetch(`${SUPABASE_URL}/rest/v1/episodes?id=eq.${episodeId}`, {
+            method: 'DELETE',
+            headers
+        });
+        if (response.ok) {
+            res.json({ success: true, message: "Episode deleted successfully!" });
+        } else {
+            const err = await response.text();
+            res.status(500).json({ success: false, message: err });
+        }
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// 5. Token Generate Endpoint
 app.get('/api/get-watch-token', async (req, res) => {
     try {
         const episodeId = req.query.episodeId;
@@ -99,7 +149,7 @@ app.get('/api/get-watch-token', async (req, res) => {
     }
 });
 
-// 4. Token Verify Endpoint (User-Lock, Single-Use & Security Alert)
+// 6. Token Verify Endpoint (User-Lock, Single-Use & Security Alert)
 app.get('/api/verify-token', async (req, res) => {
     try {
         const token = req.query.token;
@@ -129,7 +179,6 @@ app.get('/api/verify-token', async (req, res) => {
         // 🔒 USER-LOCK CHECK & ADMIN SECURITY ALERT
         if (incomingUserId && incomingUserId !== "" && incomingUserId !== "undefined" && incomingUserId !== originalUserId) {
             
-            // Bot par admin ko turant alert bhejo
             const alertText = `🚨 **Security Alert: Leak / Bypass Attempt Detected!**\n\n👤 Original Owner ID: \`${originalUserId}\`\n🚫 Unauthorized User ID: \`${incomingUserId}\`\n🔗 Episode ID: \`${tokenData.episode_id}\``;
             
             for (const adminId of ADMIN_TELEGRAM_IDS) {
