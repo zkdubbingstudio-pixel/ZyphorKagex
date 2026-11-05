@@ -29,6 +29,7 @@
         .player-container {
             position: relative; width: 100%; flex-grow: 1; background: #000;
             display: flex; justify-content: center; align-items: center; overflow: hidden;
+            transition: filter 0.3s ease;
         }
         iframe, video { width: 100%; height: 100%; border: none; object-fit: contain; }
         #watermark {
@@ -50,7 +51,6 @@
     </div>
 
     <script>
-        // Telegram WebApp initialization for User-Lock verification
         const tg = window.Telegram.WebApp;
         tg.expand();
         const telegramUserId = tg.initDataUnsafe?.user?.id || '';
@@ -59,10 +59,18 @@
         const token = urlParams.get('token');
         const container = document.getElementById('playerContainer');
 
+        // 🛡️ Anti-Leak Protection: Blur video on app switch/minimize
+        document.addEventListener("visibilitychange", function() {
+            if (document.hidden) {
+                container.style.filter = "blur(30px)";
+            } else {
+                container.style.filter = "none";
+            }
+        });
+
         if (!token) {
             container.innerHTML = "<h2 style='text-align:center; margin-top:50px; color:red;'>⚠️ Invalid or Expired Link!</h2>";
         } else {
-            // Pass token & Telegram userId to backend for strict validation
             fetch(`https://zyphorkagex.onrender.com/api/verify-token?token=${token}&userId=${telegramUserId}`)
                 .then(res => res.json())
                 .then(data => {
