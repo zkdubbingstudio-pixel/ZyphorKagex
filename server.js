@@ -8,6 +8,8 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 const SUPABASE_URL = "https://knefbynsdhgjuhlklyvu.supabase.co";
 const SUPABASE_KEY = "sb_publishable_tZxPCR45AXkjm73Fq81YAQ_VHEsGZVJ";
+const BOT_TOKEN = "8934334004:AAESWVI3LqraM8eztb9tJldPOkzXGn0tI2c";
+const ADMIN_TELEGRAM_IDS = ["6144546817", "8528056660"];
 
 app.get('/', (req, res) => {
     res.send("Render Backend & Stream Server is Active!");
@@ -31,7 +33,7 @@ app.get('/api/episodes', async (req, res) => {
 // 2. Publish new episode endpoint
 app.post('/api/publish-episode', async (req, res) => {
     try {
-        const { id, anime_name, episode_number, title, video_url } = req.body;
+        const { id, anime_name, episode_number, title, video_url, ad_link } = req.body;
         const headers = {
             "apikey": SUPABASE_KEY,
             "Authorization": `Bearer ${SUPABASE_KEY}`,
@@ -41,7 +43,7 @@ app.post('/api/publish-episode', async (req, res) => {
         const response = await fetch(`${SUPABASE_URL}/rest/v1/episodes`, {
             method: 'POST',
             headers,
-            body: JSON.stringify({ id, anime_name, episode_number, title, video_url })
+            body: JSON.stringify({ id, anime_name, episode_number, title, video_url, ad_link })
         });
         if (response.ok) {
             res.json({ success: true, message: "Episode published successfully!" });
@@ -97,7 +99,7 @@ app.get('/api/get-watch-token', async (req, res) => {
     }
 });
 
-// 4. Token Verify Endpoint (User-Lock & Single-Use Enforcement)
+// 4. Token Verify Endpoint (User-Lock, Single-Use & Security Alert)
 app.get('/api/verify-token', async (req, res) => {
     try {
         const token = req.query.token;
@@ -124,8 +126,20 @@ app.get('/api/verify-token', async (req, res) => {
         const expiresAt = new Date(tokenData.expires_at);
         const originalUserId = String(tokenData.user_id);
 
-        // 🔒 USER-LOCK CHECK
+        // 🔒 USER-LOCK CHECK & ADMIN SECURITY ALERT
         if (incomingUserId && incomingUserId !== "" && incomingUserId !== "undefined" && incomingUserId !== originalUserId) {
+            
+            // Bot par admin ko turant alert bhejo
+            const alertText = `🚨 **Security Alert: Leak / Bypass Attempt Detected!**\n\n👤 Original Owner ID: \`${originalUserId}\`\n🚫 Unauthorized User ID: \`${incomingUserId}\`\n🔗 Episode ID: \`${tokenData.episode_id}\``;
+            
+            for (const adminId of ADMIN_TELEGRAM_IDS) {
+                fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+                    method: 'POST',
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ chat_id: adminId, text: alertText, parse_mode: "Markdown" })
+                }).catch(err => console.log("Alert send error:", err));
+            }
+
             return res.status(400).json({ success: false, message: "Yeh link kisi aur user ke liye generate ki gayi hai! Aap ise use nahi kar sakte." });
         }
 
