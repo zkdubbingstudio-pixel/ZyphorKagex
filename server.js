@@ -26,14 +26,17 @@ app.get('/api/episodes', async (req, res) => {
         const data = await response.json();
         res.json(data);
     } catch (error) {
-        res.status(500).json({ success: [], message: error.message });
+        res.status(500).json({ success: false, error: error.message });
     }
 });
 
-// 2. Publish new episode endpoint
-app.post('/api/publish-episode', async (req, res) => {
+// 2. Publish new episode endpoint (POST)
+app.post('/api/episodes', async (req, res) => {
     try {
-        const { id, anime_name, episode_number, title, video_url, ad_link } = req.body;
+        const { animeName, episodeNumber, title, videoUrl, adLink } = req.body;
+        // Generate a unique episode id if not present
+        const epId = "ep_" + Date.now();
+
         const headers = {
             "apikey": SUPABASE_KEY,
             "Authorization": `Bearer ${SUPABASE_KEY}`,
@@ -43,24 +46,32 @@ app.post('/api/publish-episode', async (req, res) => {
         const response = await fetch(`${SUPABASE_URL}/rest/v1/episodes`, {
             method: 'POST',
             headers,
-            body: JSON.stringify({ id, anime_name, episode_number, title, video_url, ad_link })
+            body: JSON.stringify({ 
+                id: epId, 
+                anime_name: animeName, 
+                episode_number: episodeNumber, 
+                title: title, 
+                video_url: videoUrl, 
+                ad_link: adLink || null 
+            })
         });
         if (response.ok) {
             res.json({ success: true, message: "Episode published successfully!" });
         } else {
             const err = await response.text();
-            res.status(500).json({ success: false, message: err });
+            res.json({ success: false, error: err });
         }
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.json({ success: false, error: error.message });
     }
 });
 
-// 3. Episode Update (Edit) Endpoint
-app.put('/api/update-episode/:id', async (req, res) => {
+// 3. Episode Update (Edit) Endpoint (PUT)
+app.put('/api/episodes/:id', async (req, res) => {
     try {
         const episodeId = req.params.id;
-        const { anime_name, episode_number, title, video_url, ad_link } = req.body;
+        const { animeName, episodeNumber, title, videoUrl, adLink } = req.body;
+        
         const headers = {
             "apikey": SUPABASE_KEY,
             "Authorization": `Bearer ${SUPABASE_KEY}`,
@@ -70,21 +81,27 @@ app.put('/api/update-episode/:id', async (req, res) => {
         const response = await fetch(`${SUPABASE_URL}/rest/v1/episodes?id=eq.${episodeId}`, {
             method: 'PATCH',
             headers,
-            body: JSON.stringify({ anime_name, episode_number, title, video_url, ad_link })
+            body: JSON.stringify({ 
+                anime_name: animeName, 
+                episode_number: episodeNumber, 
+                title: title, 
+                video_url: videoUrl, 
+                ...(adLink ? { ad_link: adLink } : {})
+            })
         });
         if (response.ok) {
             res.json({ success: true, message: "Episode updated successfully!" });
         } else {
             const err = await response.text();
-            res.status(500).json({ success: false, message: err });
+            res.json({ success: false, error: err });
         }
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.json({ success: false, error: error.message });
     }
 });
 
-// 4. Episode Delete Endpoint
-app.delete('/api/delete-episode/:id', async (req, res) => {
+// 4. Episode Delete Endpoint (DELETE)
+app.delete('/api/episodes/:id', async (req, res) => {
     try {
         const episodeId = req.params.id;
         const headers = {
@@ -99,10 +116,10 @@ app.delete('/api/delete-episode/:id', async (req, res) => {
             res.json({ success: true, message: "Episode deleted successfully!" });
         } else {
             const err = await response.text();
-            res.status(500).json({ success: false, message: err });
+            res.json({ success: false, error: err });
         }
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.json({ success: false, error: error.message });
     }
 });
 
