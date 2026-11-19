@@ -107,7 +107,7 @@
                 allEpisodes = await res.json();
                 const listDiv = document.getElementById('episodesList');
                 
-                if (!allEpisodes || allEpisodes.length === 0) {
+                if (!Array.isArray(allEpisodes) || allEpisodes.length === 0) {
                     listDiv.innerHTML = "<p>No episodes published yet.</p>";
                     return;
                 }
