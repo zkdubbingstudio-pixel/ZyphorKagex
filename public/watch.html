@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Kitsu Player - ZK Dubbing Studio</title>
-    <!-- Telegram WebApp SDK for User ID Binding -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         html, body {
@@ -24,6 +23,7 @@
             display: flex; align-items: center; padding: 8px 12px;
             background: #1a1a1a; border-bottom: 1px solid #333; flex-shrink: 0; z-index: 10;
         }
+        .header-bar.hidden-header { display: none; }
         .header-bar img { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; margin-right: 8px; }
         .header-bar span { font-size: 15px; font-weight: bold; color: #ffcc00; }
         .player-container {
@@ -41,7 +41,7 @@
 </head>
 <body oncontextmenu="return false;">
 
-    <div class="header-bar">
+    <div class="header-bar" id="headerBar">
         <img src="https://i.ibb.co/2Yp3CDq9/file-000000006f2c8211b20c6bedc9f9ac12.png" alt="ZK Logo">
         <span>ZK Dubbing Studio</span>
     </div>
@@ -52,14 +52,33 @@
 
     <script>
         const tg = window.Telegram.WebApp;
+        tg.ready();
         tg.expand();
         const telegramUserId = tg.initDataUnsafe?.user?.id || '';
 
         const urlParams = new URLSearchParams(window.location.search);
         const token = urlParams.get('token');
         const container = document.getElementById('playerContainer');
+        const headerBar = document.getElementById('headerBar');
 
-        // Anti-Leak Protection: Blur video on app switch/minimize
+        function setFullscreenUI(isFs) {
+            if (isFs) {
+                headerBar.classList.add('hidden-header');
+                if (screen.orientation && screen.orientation.lock) {
+                    screen.orientation.lock('landscape').catch(() => {});
+                }
+            } else {
+                headerBar.classList.remove('hidden-header');
+                if (screen.orientation && screen.orientation.unlock) {
+                    try { screen.orientation.unlock(); } catch (e) {}
+                }
+            }
+        }
+
+        document.addEventListener('fullscreenchange', () => {
+            setFullscreenUI(Boolean(document.fullscreenElement));
+        });
+
         document.addEventListener("visibilitychange", function() {
             if (document.hidden) {
                 container.style.filter = "blur(30px)";
@@ -68,8 +87,30 @@
             }
         });
 
+        function attachVideoFullscreenHelper(videoEl) {
+            if (!videoEl) return;
+            videoEl.addEventListener('webkitbeginfullscreen', () => setFullscreenUI(true));
+            videoEl.addEventListener('webkitendfullscreen', () => setFullscreenUI(false));
+
+            videoEl.addEventListener('click', () => {
+                if (!document.fullscreenElement && container.requestFullscreen) {
+                    container.requestFullscreen().catch(() => {});
+                }
+            });
+        }
+
+        function showStatusMessage(htmlContent) {
+            const msgBox = document.createElement('div');
+            msgBox.style.textAlign = 'center';
+            msgBox.style.marginTop = '50px';
+            msgBox.style.padding = '20px';
+            msgBox.style.color = 'red';
+            msgBox.innerHTML = htmlContent;
+            container.appendChild(msgBox);
+        }
+
         if (!token) {
-            container.innerHTML = "<h2 style='text-align:center; margin-top:50px; color:red;'>⚠️ Invalid or Expired Link!</h2>";
+            showStatusMessage("<h2>⚠️ Invalid or Expired Link!</h2>");
         } else {
             fetch(`/api/verify-token?token=${encodeURIComponent(token)}&userId=${encodeURIComponent(telegramUserId)}`)
                 .then(res => res.json())
@@ -77,16 +118,38 @@
                     if (data.success) {
                         const videoUrl = data.videoUrl;
                         const userId = data.userId || telegramUserId || "Protected";
-                        
+
                         const watermark = document.getElementById('watermark');
                         watermark.innerText = `ID: ${userId} | ZK Dubbing`;
 
                         if (videoUrl && (videoUrl.includes('abyssplayer.com') || videoUrl.includes('embed') || videoUrl.includes('iframe'))) {
-                            container.innerHTML += `<iframe src="${videoUrl}" allow="fullscreen; autoplay; encrypted-media; picture-in-picture" allowfullscreen webkitallowfullscreen mozallowfullscreen></iframe>`;
+                            const iframe = document.createElement('iframe');
+                            iframe.src = videoUrl;
+                            iframe.allow = "fullscreen; autoplay; encrypted-media; picture-in-picture";
+                            iframe.allowFullscreen = true;
+                            iframe.setAttribute("webkitallowfullscreen", "true");
+                            iframe.setAttribute("mozallowfullscreen", "true");
+                            iframe.style.width = "100%";
+                            iframe.style.height = "100%";
+                            iframe.style.border = "none";
+                            container.appendChild(iframe);
                         } else if (videoUrl) {
-                            container.innerHTML += `<video id="videoPlayer" src="${videoUrl}" controls controlsList="nodownload" disablePictureInPicture playsinline webkit-playsinline></video>`;
+                            const vid = document.createElement('video');
+                            vid.id = 'videoPlayer';
+                            vid.src = videoUrl;
+                            vid.controls = true;
+                            vid.setAttribute("controlsList", "nodownload");
+                            vid.setAttribute("disablePictureInPicture", "");
+                            vid.setAttribute("playsinline", "");
+                            vid.setAttribute("webkit-playsinline", "");
+                            vid.style.width = "100%";
+                            vid.style.height = "100%";
+                            vid.style.border = "none";
+                            vid.style.objectFit = "contain";
+                            container.appendChild(vid);
+                            attachVideoFullscreenHelper(vid);
                         } else {
-                            container.innerHTML = "<h2 style='text-align:center; margin-top:50px; color:red;'>❌ Video link not found in database!</h2>";
+                            showStatusMessage("<h2>❌ Video link not found in database!</h2>");
                         }
 
                         function moveWatermark() {
@@ -102,11 +165,11 @@
                         setInterval(moveWatermark, 6000);
 
                     } else {
-                        container.innerHTML = `<h2 style='text-align:center; margin-top:50px; color:red; padding: 20px;'>❌ ${data.message || 'Link expired!'}</h2>`;
+                        showStatusMessage(`<h2>❌ ${data.message || 'Link expired!'}</h2>`);
                     }
                 })
                 .catch(err => {
-                    container.innerHTML = "<h2 style='text-align:center; margin-top:50px; color:red;'>❌ Server Error!</h2>";
+                    showStatusMessage("<h2>❌ Server Error!</h2>");
                 });
         }
     </script>
