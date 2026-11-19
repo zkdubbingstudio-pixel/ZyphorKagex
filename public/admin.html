@@ -38,6 +38,60 @@
             border-radius: 4px;
             box-sizing: border-box;
         }
+        .url-label-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 8px;
+        }
+        .url-label-row label {
+            margin: 0;
+        }
+        .add-server-btn {
+            width: auto;
+            margin: 0;
+            padding: 4px 12px;
+            background: #28a745;
+            border: none;
+            color: #fff;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 4px;
+            cursor: pointer;
+            line-height: 1.2;
+        }
+        .add-server-btn:hover {
+            background: #218838;
+        }
+        #serversContainer {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin: 8px 0 15px 0;
+        }
+        .server-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        .server-row input {
+            flex: 1;
+            margin: 0;
+        }
+        .remove-server-btn {
+            width: auto;
+            margin: 0;
+            padding: 10px 12px;
+            background: #dc3545;
+            border: none;
+            color: #fff;
+            font-weight: bold;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .remove-server-btn:hover {
+            background: #b02a37;
+        }
         button.submit-btn {
             background: #0088cc;
             font-weight: bold;
@@ -87,8 +141,15 @@
             <label>Title (Optional):</label>
             <input type="text" id="title" placeholder="Episode Title">
             
-            <label>Video Stream URL / File Path:</label>
-            <input type="text" id="videoUrl" required placeholder="https://fembed.co/embed/...">
+            <div class="url-label-row">
+                <label>Video Stream URL / File Path (Servers):</label>
+                <button type="button" class="add-server-btn" id="addServerBtn" title="Add Server">+</button>
+            </div>
+            <div id="serversContainer">
+                <div class="server-row">
+                    <input type="text" class="server-url-input" required placeholder="Server 1 URL (VDOHide / Filemoon / Embed)">
+                </div>
+            </div>
             
             <button type="submit" class="submit-btn" id="submitBtn">Publish Episode</button>
             <button type="button" id="cancelBtn" style="background:#555; display:none;" onclick="resetForm()">Cancel Edit</button>
@@ -100,6 +161,91 @@
 
     <script>
         let allEpisodes = [];
+        const serversContainer = document.getElementById('serversContainer');
+        const addServerBtn = document.getElementById('addServerBtn');
+
+        function updateServerPlaceholders() {
+            const rows = serversContainer.querySelectorAll('.server-row');
+            rows.forEach((row, idx) => {
+                const inp = row.querySelector('.server-url-input');
+                if (inp) {
+                    inp.placeholder = `Server ${idx + 1} URL (VDOHide / Filemoon / Embed)`;
+                    inp.required = idx === 0;
+                }
+            });
+        }
+
+        function createServerRow(value = '', isFirst = false) {
+            const row = document.createElement('div');
+            row.className = 'server-row';
+
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'server-url-input';
+            input.value = value;
+            input.required = isFirst;
+            row.appendChild(input);
+
+            if (!isFirst) {
+                const removeBtn = document.createElement('button');
+                removeBtn.type = 'button';
+                removeBtn.className = 'remove-server-btn';
+                removeBtn.textContent = '✕';
+                removeBtn.title = 'Remove Server';
+                removeBtn.addEventListener('click', () => {
+                    row.remove();
+                    updateServerPlaceholders();
+                });
+                row.appendChild(removeBtn);
+            }
+
+            return row;
+        }
+
+        function setServerInputs(urls = []) {
+            serversContainer.innerHTML = '';
+            const list = Array.isArray(urls) && urls.length > 0 ? urls : [''];
+            list.forEach((url, idx) => {
+                serversContainer.appendChild(createServerRow(url, idx === 0));
+            });
+            updateServerPlaceholders();
+        }
+
+        function parseStoredVideoUrls(rawValue) {
+            if (!rawValue) return [''];
+            if (Array.isArray(rawValue)) {
+                return rawValue.map(v => typeof v === 'string' ? v : (v && v.url ? v.url : '')).filter(Boolean);
+            }
+            if (typeof rawValue === 'string') {
+                const trimmed = rawValue.trim();
+                if (trimmed.startsWith('[')) {
+                    try {
+                        const parsed = JSON.parse(trimmed);
+                        if (Array.isArray(parsed)) {
+                            const items = parsed.map(v => typeof v === 'string' ? v : (v && v.url ? v.url : '')).filter(Boolean);
+                            return items.length > 0 ? items : [''];
+                        }
+                    } catch (_) {}
+                }
+                return [trimmed];
+            }
+            return [''];
+        }
+
+        function getCollectedServers() {
+            const inputs = Array.from(serversContainer.querySelectorAll('.server-url-input'));
+            return inputs
+                .map((inp, idx) => ({
+                    name: `Server ${idx + 1}`,
+                    url: inp.value.trim()
+                }))
+                .filter(s => s.url.length > 0);
+        }
+
+        addServerBtn.addEventListener('click', () => {
+            serversContainer.appendChild(createServerRow('', false));
+            updateServerPlaceholders();
+        });
 
         async function fetchEpisodes() {
             try {
@@ -114,9 +260,11 @@
 
                 listDiv.innerHTML = allEpisodes.map(ep => {
                     const botLink = `https://t.me/Kitsu_zk_bot?start=${ep.id}`;
+                    const serverCount = parseStoredVideoUrls(ep.video_url).filter(Boolean).length;
+                    const serverBadge = serverCount > 1 ? ` • <span style="color:#ffcc00;">${serverCount} Servers</span>` : '';
                     return `
                         <div class="episode-item">
-                            <strong>${ep.anime_name} - Ep ${ep.episode_number}</strong><br>
+                            <strong>${ep.anime_name} - Ep ${ep.episode_number}</strong>${serverBadge}<br>
                             <small style="color: #aaa;">${ep.title || 'No title'}</small><br>
                             <span style="color: #00aaee; font-size: 11px; word-break: break-all;">Bot Link: ${botLink}</span>
                             <div class="btn-group">
@@ -147,7 +295,7 @@
             document.getElementById('animeName').value = ep.anime_name;
             document.getElementById('episodeNumber').value = ep.episode_number;
             document.getElementById('title').value = ep.title || '';
-            document.getElementById('videoUrl').value = ep.video_url;
+            setServerInputs(parseStoredVideoUrls(ep.video_url));
             
             document.getElementById('formTitle').innerText = "✏️ Edit Episode";
             document.getElementById('submitBtn').innerText = "Update Episode";
@@ -158,6 +306,7 @@
         function resetForm() {
             document.getElementById('episodeForm').reset();
             document.getElementById('editEpisodeId').value = '';
+            setServerInputs(['']);
             document.getElementById('formTitle').innerText = "🎬 Publish Episode";
             document.getElementById('submitBtn').innerText = "Publish Episode";
             document.getElementById('cancelBtn').style.display = "none";
@@ -185,7 +334,13 @@
             const animeName = document.getElementById('animeName').value;
             const episodeNumber = document.getElementById('episodeNumber').value;
             const title = document.getElementById('title').value;
-            const videoUrl = document.getElementById('videoUrl').value;
+            const servers = getCollectedServers();
+            const videoUrl = servers.length > 0 ? servers[0].url : '';
+
+            if (!videoUrl) {
+                alert("Please enter at least one valid video URL.");
+                return;
+            }
 
             const url = editId ? `/api/episodes/${editId}` : '/api/episodes';
             const method = editId ? 'PUT' : 'POST';
@@ -194,7 +349,7 @@
                 const res = await fetch(url, {
                     method: method,
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ animeName, episodeNumber, title, videoUrl })
+                    body: JSON.stringify({ animeName, episodeNumber, title, videoUrl, servers })
                 });
                 const data = await res.json();
                 if (data.success) {
