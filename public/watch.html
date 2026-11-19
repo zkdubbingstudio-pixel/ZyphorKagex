@@ -6,11 +6,14 @@
     <title>Kitsu Player - ZK Dubbing Studio</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
+        * {
+            box-sizing: border-box;
+        }
         html, body {
             margin: 0;
             padding: 0;
             width: 100%;
-            height: 100%;
+            height: 100dvh;
             background-color: #000000;
             color: #ffffff;
             font-family: Arial, sans-serif;
@@ -18,33 +21,113 @@
             user-select: none;
             -webkit-user-select: none;
         }
-        body { display: flex; flex-direction: column; }
-        .header-bar {
-            display: flex; align-items: center; padding: 8px 12px;
-            background: #1a1a1a; border-bottom: 1px solid #333; flex-shrink: 0; z-index: 10;
+        body {
+            display: flex;
+            flex-direction: column;
         }
-        .header-bar.hidden-header { display: none; }
-        .header-bar img { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; margin-right: 8px; }
-        .header-bar span { font-size: 15px; font-weight: bold; color: #ffcc00; }
+        .header-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 12px;
+            background: #1a1a1a;
+            border-bottom: 1px solid #333;
+            flex-shrink: 0;
+            z-index: 20;
+        }
+        .header-left {
+            display: flex;
+            align-items: center;
+        }
+        .header-bar img {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            object-fit: cover;
+            margin-right: 8px;
+        }
+        .header-bar span {
+            font-size: 15px;
+            font-weight: bold;
+            color: #ffcc00;
+        }
+        .theater-btn {
+            background: #2b2b2b;
+            color: #ffcc00;
+            border: 1px solid #444;
+            border-radius: 6px;
+            padding: 5px 10px;
+            font-size: 12px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .exit-theater-btn {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+            background: rgba(20, 20, 20, 0.85);
+            color: #ffcc00;
+            border: 1px solid rgba(255, 204, 0, 0.5);
+            border-radius: 6px;
+            padding: 6px 10px;
+            font-size: 12px;
+            font-weight: bold;
+            display: none;
+            cursor: pointer;
+        }
+        body.theater-mode .header-bar {
+            display: none;
+        }
+        body.theater-mode .exit-theater-btn {
+            display: block;
+        }
         .player-container {
-            position: relative; width: 100%; flex-grow: 1; background: #000;
-            display: flex; justify-content: center; align-items: center; overflow: hidden;
+            position: relative;
+            width: 100%;
+            flex: 1;
+            min-height: 0;
+            background: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
             transition: filter 0.3s ease;
         }
-        iframe, video { width: 100%; height: 100%; border: none; object-fit: contain; }
+        iframe, video {
+            width: 100%;
+            height: 100%;
+            max-width: 100%;
+            max-height: 100%;
+            border: none;
+            object-fit: contain;
+        }
         #watermark {
-            position: absolute; top: 15px; left: 15px; color: rgba(255, 255, 255, 0.18);
-            font-size: 12px; font-weight: bold; pointer-events: none; z-index: 999;
-            transition: all 6s linear; text-shadow: 1px 1px 2px rgba(0,0,0,0.7); white-space: nowrap;
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            color: rgba(255, 255, 255, 0.18);
+            font-size: 12px;
+            font-weight: bold;
+            pointer-events: none;
+            z-index: 999;
+            transition: all 6s linear;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.7);
+            white-space: nowrap;
         }
     </style>
 </head>
 <body oncontextmenu="return false;">
 
     <div class="header-bar" id="headerBar">
-        <img src="https://i.ibb.co/2Yp3CDq9/file-000000006f2c8211b20c6bedc9f9ac12.png" alt="ZK Logo">
-        <span>ZK Dubbing Studio</span>
+        <div class="header-left">
+            <img src="https://i.ibb.co/2Yp3CDq9/file-000000006f2c8211b20c6bedc9f9ac12.png" alt="ZK Logo">
+            <span>ZK Dubbing Studio</span>
+        </div>
+        <button type="button" class="theater-btn" id="enterTheaterBtn">⛶ Fullscreen</button>
     </div>
+
+    <button type="button" class="exit-theater-btn" id="exitTheaterBtn">✕ Exit</button>
 
     <div class="player-container" id="playerContainer">
         <div id="watermark">ID: Loading...</div>
@@ -59,25 +142,30 @@
         const urlParams = new URLSearchParams(window.location.search);
         const token = urlParams.get('token');
         const container = document.getElementById('playerContainer');
-        const headerBar = document.getElementById('headerBar');
+        const enterTheaterBtn = document.getElementById('enterTheaterBtn');
+        const exitTheaterBtn = document.getElementById('exitTheaterBtn');
 
-        function setFullscreenUI(isFs) {
-            if (isFs) {
-                headerBar.classList.add('hidden-header');
-                if (screen.orientation && screen.orientation.lock) {
-                    screen.orientation.lock('landscape').catch(() => {});
-                }
+        function toggleMiniAppFullscreen(enable) {
+            if (enable) {
+                document.body.classList.add('theater-mode');
+                tg.expand();
+                try {
+                    if (typeof tg.requestFullscreen === 'function') {
+                        tg.requestFullscreen();
+                    }
+                } catch (e) {}
             } else {
-                headerBar.classList.remove('hidden-header');
-                if (screen.orientation && screen.orientation.unlock) {
-                    try { screen.orientation.unlock(); } catch (e) {}
-                }
+                document.body.classList.remove('theater-mode');
+                try {
+                    if (typeof tg.exitFullscreen === 'function') {
+                        tg.exitFullscreen();
+                    }
+                } catch (e) {}
             }
         }
 
-        document.addEventListener('fullscreenchange', () => {
-            setFullscreenUI(Boolean(document.fullscreenElement));
-        });
+        enterTheaterBtn.addEventListener('click', () => toggleMiniAppFullscreen(true));
+        exitTheaterBtn.addEventListener('click', () => toggleMiniAppFullscreen(false));
 
         document.addEventListener("visibilitychange", function() {
             if (document.hidden) {
@@ -86,18 +174,6 @@
                 container.style.filter = "none";
             }
         });
-
-        function attachVideoFullscreenHelper(videoEl) {
-            if (!videoEl) return;
-            videoEl.addEventListener('webkitbeginfullscreen', () => setFullscreenUI(true));
-            videoEl.addEventListener('webkitendfullscreen', () => setFullscreenUI(false));
-
-            videoEl.addEventListener('click', () => {
-                if (!document.fullscreenElement && container.requestFullscreen) {
-                    container.requestFullscreen().catch(() => {});
-                }
-            });
-        }
 
         function showStatusMessage(htmlContent) {
             const msgBox = document.createElement('div');
@@ -129,9 +205,6 @@
                             iframe.allowFullscreen = true;
                             iframe.setAttribute("webkitallowfullscreen", "true");
                             iframe.setAttribute("mozallowfullscreen", "true");
-                            iframe.style.width = "100%";
-                            iframe.style.height = "100%";
-                            iframe.style.border = "none";
                             container.appendChild(iframe);
                         } else if (videoUrl) {
                             const vid = document.createElement('video');
@@ -142,12 +215,7 @@
                             vid.setAttribute("disablePictureInPicture", "");
                             vid.setAttribute("playsinline", "");
                             vid.setAttribute("webkit-playsinline", "");
-                            vid.style.width = "100%";
-                            vid.style.height = "100%";
-                            vid.style.border = "none";
-                            vid.style.objectFit = "contain";
                             container.appendChild(vid);
-                            attachVideoFullscreenHelper(vid);
                         } else {
                             showStatusMessage("<h2>❌ Video link not found in database!</h2>");
                         }
