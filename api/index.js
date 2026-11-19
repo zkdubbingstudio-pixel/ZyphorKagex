@@ -179,14 +179,23 @@ app.get('/api/get-watch-token', async (req, res) => {
     }
 });
 
-// 6. Token Verify Endpoint (User-Lock, Single-Use & Security Alert)
+// 6. Token Verify Endpoint (Mini App Only, User-Lock, Single-Use & Security Alert)
 app.get('/api/verify-token', async (req, res) => {
     try {
         const token = req.query.token;
-        const incomingUserId = req.query.userId;
+        const incomingUserId = (req.query.userId || "").toString().trim();
+        const initDataHeader = (req.headers["x-telegram-init-data"] || "").toString().trim();
 
         if (!token) {
             return res.status(400).json({ success: false, message: "Token missing" });
+        }
+
+        // Block external browser / non-Mini App requests
+        if (!initDataHeader && (!incomingUserId || incomingUserId === "undefined")) {
+            return res.status(403).json({
+                success: false,
+                message: "Yeh episode sirf Telegram Mini App ke andar hi chal sakta hai."
+            });
         }
 
         const headers = {
