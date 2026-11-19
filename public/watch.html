@@ -115,6 +115,20 @@
             text-shadow: 1px 1px 2px rgba(0,0,0,0.7);
             white-space: nowrap;
         }
+        .blocked-box {
+            text-align: center;
+            padding: 24px;
+            max-width: 420px;
+        }
+        .blocked-box h2 {
+            color: #ff4d4d;
+            margin-bottom: 10px;
+        }
+        .blocked-box p {
+            color: #cccccc;
+            font-size: 14px;
+            line-height: 1.5;
+        }
     </style>
 </head>
 <body oncontextmenu="return false;">
@@ -134,10 +148,18 @@
     </div>
 
     <script>
-        const tg = window.Telegram.WebApp;
-        tg.ready();
-        tg.expand();
-        const telegramUserId = tg.initDataUnsafe?.user?.id || '';
+        const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
+        if (tg) {
+            tg.ready();
+            tg.expand();
+        }
+
+        const initData = tg && typeof tg.initData === 'string' ? tg.initData.trim() : '';
+        const telegramUserId = tg && tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.id
+            ? String(tg.initDataUnsafe.user.id)
+            : '';
+
+        const isInsideTelegramMiniApp = Boolean(tg && (initData.length > 0 || telegramUserId.length > 0));
 
         const urlParams = new URLSearchParams(window.location.search);
         const token = urlParams.get('token');
@@ -146,6 +168,7 @@
         const exitTheaterBtn = document.getElementById('exitTheaterBtn');
 
         function toggleMiniAppFullscreen(enable) {
+            if (!tg) return;
             if (enable) {
                 document.body.classList.add('theater-mode');
                 tg.expand();
@@ -175,20 +198,43 @@
             }
         });
 
-        function showStatusMessage(htmlContent) {
-            const msgBox = document.createElement('div');
-            msgBox.style.textAlign = 'center';
-            msgBox.style.marginTop = '50px';
-            msgBox.style.padding = '20px';
-            msgBox.style.color = 'red';
-            msgBox.innerHTML = htmlContent;
-            container.appendChild(msgBox);
+        function showBlockedMessage(titleText, descText) {
+            const wm = document.getElementById('watermark');
+            if (wm) wm.style.display = 'none';
+            if (enterTheaterBtn) enterTheaterBtn.style.display = 'none';
+
+            const box = document.createElement('div');
+            box.className = 'blocked-box';
+
+            const h2 = document.createElement('h2');
+            h2.textContent = titleText;
+
+            const p = document.createElement('p');
+            p.textContent = descText;
+
+            box.appendChild(h2);
+            box.appendChild(p);
+            container.appendChild(box);
         }
 
-        if (!token) {
-            showStatusMessage("<h2>⚠️ Invalid or Expired Link!</h2>");
+        if (!isInsideTelegramMiniApp) {
+            showBlockedMessage(
+                "🚫 Access Denied (Telegram Mini App Only)",
+                "Yeh episode external browser (Chrome) ya kisi aur jagah nahi chal sakta. Kripya Telegram bot ke andar Mini App se hi open karein."
+            );
+        } else if (!token) {
+            showBlockedMessage(
+                "⚠️ Invalid or Expired Link",
+                "Link valid nahi hai ya expire ho chuka hai."
+            );
         } else {
-            fetch(`/api/verify-token?token=${encodeURIComponent(token)}&userId=${encodeURIComponent(telegramUserId)}`)
+            const verifyUrl = `/api/verify-token?token=${encodeURIComponent(token)}&userId=${encodeURIComponent(telegramUserId)}`;
+
+            fetch(verifyUrl, {
+                headers: {
+                    "X-Telegram-Init-Data": initData
+                }
+            })
                 .then(res => res.json())
                 .then(data => {
                     if (data.success) {
@@ -196,7 +242,7 @@
                         const userId = data.userId || telegramUserId || "Protected";
 
                         const watermark = document.getElementById('watermark');
-                        watermark.innerText = `ID: ${userId} | ZK Dubbing`;
+                        watermark.textContent = `ID: ${userId} | ZK Dubbing`;
 
                         if (videoUrl && (videoUrl.includes('abyssplayer.com') || videoUrl.includes('embed') || videoUrl.includes('iframe'))) {
                             const iframe = document.createElement('iframe');
@@ -217,7 +263,10 @@
                             vid.setAttribute("webkit-playsinline", "");
                             container.appendChild(vid);
                         } else {
-                            showStatusMessage("<h2>❌ Video link not found in database!</h2>");
+                            showBlockedMessage(
+                                "❌ Video Not Found",
+                                "Database mein is episode ka video link nahi mila."
+                            );
                         }
 
                         function moveWatermark() {
@@ -231,13 +280,18 @@
 
                         moveWatermark();
                         setInterval(moveWatermark, 6000);
-
                     } else {
-                        showStatusMessage(`<h2>❌ ${data.message || 'Link expired!'}</h2>`);
+                        showBlockedMessage(
+                            "❌ Access Blocked",
+                            data.message || "Link expire ho chuka hai ya Telegram Mini App verification fail hua."
+                        );
                     }
                 })
-                .catch(err => {
-                    showStatusMessage("<h2>❌ Server Error!</h2>");
+                .catch(() => {
+                    showBlockedMessage(
+                        "❌ Server Error",
+                        "Video verify karne mein server error aaya hai."
+                    );
                 });
         }
     </script>
