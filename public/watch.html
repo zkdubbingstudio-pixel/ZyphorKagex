@@ -59,7 +59,7 @@
         const token = urlParams.get('token');
         const container = document.getElementById('playerContainer');
 
-        // 🛡️ Anti-Leak Protection: Blur video on app switch/minimize
+        // Anti-Leak Protection: Blur video on app switch/minimize
         document.addEventListener("visibilitychange", function() {
             if (document.hidden) {
                 container.style.filter = "blur(30px)";
@@ -71,7 +71,7 @@
         if (!token) {
             container.innerHTML = "<h2 style='text-align:center; margin-top:50px; color:red;'>⚠️ Invalid or Expired Link!</h2>";
         } else {
-            fetch(`https://zyphorkagex.onrender.com/api/verify-token?token=${token}&userId=${telegramUserId}`)
+            fetch(`/api/verify-token?token=${encodeURIComponent(token)}&userId=${encodeURIComponent(telegramUserId)}`)
                 .then(res => res.json())
                 .then(data => {
                     if (data.success) {
