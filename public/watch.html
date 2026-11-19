@@ -76,7 +76,8 @@
             display: none;
             cursor: pointer;
         }
-        body.theater-mode .header-bar {
+        body.theater-mode .header-bar,
+        body.theater-mode .server-bar {
             display: none;
         }
         body.theater-mode .exit-theater-btn {
@@ -115,6 +116,39 @@
             text-shadow: 1px 1px 2px rgba(0,0,0,0.7);
             white-space: nowrap;
         }
+        .server-bar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: #141414;
+            border-top: 1px solid #2a2a2a;
+            overflow-x: auto;
+            flex-shrink: 0;
+            z-index: 20;
+        }
+        .server-bar-label {
+            font-size: 12px;
+            color: #aaaaaa;
+            white-space: nowrap;
+            font-weight: bold;
+        }
+        .server-btn {
+            background: #242424;
+            color: #ffffff;
+            border: 1px solid #3c3c3c;
+            border-radius: 6px;
+            padding: 6px 12px;
+            font-size: 12px;
+            font-weight: bold;
+            white-space: nowrap;
+            cursor: pointer;
+        }
+        .server-btn.active {
+            background: #ffcc00;
+            color: #000000;
+            border-color: #ffcc00;
+        }
         .blocked-box {
             text-align: center;
             padding: 24px;
@@ -147,6 +181,11 @@
         <div id="watermark">ID: Loading...</div>
     </div>
 
+    <div class="server-bar" id="serverBar" style="display: none;">
+        <span class="server-bar-label">Servers:</span>
+        <div id="serverButtons" style="display: flex; gap: 8px;"></div>
+    </div>
+
     <script>
         const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
         if (tg) {
@@ -164,8 +203,11 @@
         const urlParams = new URLSearchParams(window.location.search);
         const token = urlParams.get('token');
         const container = document.getElementById('playerContainer');
+        const watermark = document.getElementById('watermark');
         const enterTheaterBtn = document.getElementById('enterTheaterBtn');
         const exitTheaterBtn = document.getElementById('exitTheaterBtn');
+        const serverBar = document.getElementById('serverBar');
+        const serverButtons = document.getElementById('serverButtons');
 
         function toggleMiniAppFullscreen(enable) {
             if (!tg) return;
@@ -198,10 +240,111 @@
             }
         });
 
+        function clearMediaElements() {
+            const existingMedia = container.querySelectorAll('iframe, video, .blocked-box');
+            existingMedia.forEach(el => el.remove());
+        }
+
+        function isEmbedUrl(url) {
+            const lower = url.toLowerCase();
+            return (
+                lower.includes('abyssplayer.com') ||
+                lower.includes('embed') ||
+                lower.includes('iframe') ||
+                lower.includes('filemoon') ||
+                lower.includes('vdohide') ||
+                lower.includes('ramnal') ||
+                lower.includes('/e/') ||
+                lower.includes('/v/')
+            );
+        }
+
+        function renderServerStream(videoUrl) {
+            clearMediaElements();
+            if (!videoUrl) {
+                showBlockedMessage(
+                    "❌ Video Not Found",
+                    "Database mein is episode ka video link nahi mila."
+                );
+                return;
+            }
+
+            if (isEmbedUrl(videoUrl)) {
+                const iframe = document.createElement('iframe');
+                iframe.src = videoUrl;
+                iframe.allow = "fullscreen; autoplay; encrypted-media; picture-in-picture";
+                iframe.allowFullscreen = true;
+                iframe.setAttribute("webkitallowfullscreen", "true");
+                iframe.setAttribute("mozallowfullscreen", "true");
+                container.appendChild(iframe);
+            } else {
+                const vid = document.createElement('video');
+                vid.id = 'videoPlayer';
+                vid.src = videoUrl;
+                vid.controls = true;
+                vid.setAttribute("controlsList", "nodownload");
+                vid.setAttribute("disablePictureInPicture", "");
+                vid.setAttribute("playsinline", "");
+                vid.setAttribute("webkit-playsinline", "");
+                container.appendChild(vid);
+            }
+        }
+
+        function parseFallbackServers(rawValue) {
+            if (!rawValue) return [];
+            if (Array.isArray(rawValue)) {
+                return rawValue
+                    .map((item, idx) => {
+                        if (typeof item === 'string' && item.trim()) {
+                            return { name: `Server ${idx + 1}`, url: item.trim() };
+                        }
+                        if (item && typeof item === 'object' && item.url) {
+                            return { name: item.name || `Server ${idx + 1}`, url: String(item.url).trim() };
+                        }
+                        return null;
+                    })
+                    .filter(Boolean);
+            }
+            if (typeof rawValue === 'string') {
+                const trimmed = rawValue.trim();
+                if (trimmed.startsWith('[')) {
+                    try {
+                        const parsed = JSON.parse(trimmed);
+                        if (Array.isArray(parsed)) return parseFallbackServers(parsed);
+                    } catch (_) {}
+                }
+                if (trimmed) return [{ name: "Server 1", url: trimmed }];
+            }
+            return [];
+        }
+
+        function renderServerSelector(servers, activeIndex = 0) {
+            serverButtons.innerHTML = '';
+            if (!Array.isArray(servers) || servers.length === 0) {
+                serverBar.style.display = 'none';
+                return;
+            }
+
+            serverBar.style.display = 'flex';
+            servers.forEach((srv, idx) => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'server-btn' + (idx === activeIndex ? ' active' : '');
+                btn.textContent = srv.name || `Server ${idx + 1}`;
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.server-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    renderServerStream(srv.url);
+                });
+                serverButtons.appendChild(btn);
+            });
+        }
+
         function showBlockedMessage(titleText, descText) {
-            const wm = document.getElementById('watermark');
-            if (wm) wm.style.display = 'none';
-            if (enterTheaterBtn) enterTheaterBtn.style.display = 'none';
+            watermark.style.display = 'none';
+            enterTheaterBtn.style.display = 'none';
+            serverBar.style.display = 'none';
+            clearMediaElements();
 
             const box = document.createElement('div');
             box.className = 'blocked-box';
@@ -238,36 +381,15 @@
                 .then(res => res.json())
                 .then(data => {
                     if (data.success) {
-                        const videoUrl = data.videoUrl;
                         const userId = data.userId || telegramUserId || "Protected";
-
-                        const watermark = document.getElementById('watermark');
                         watermark.textContent = `ID: ${userId} | ZK Dubbing`;
 
-                        if (videoUrl && (videoUrl.includes('abyssplayer.com') || videoUrl.includes('embed') || videoUrl.includes('iframe'))) {
-                            const iframe = document.createElement('iframe');
-                            iframe.src = videoUrl;
-                            iframe.allow = "fullscreen; autoplay; encrypted-media; picture-in-picture";
-                            iframe.allowFullscreen = true;
-                            iframe.setAttribute("webkitallowfullscreen", "true");
-                            iframe.setAttribute("mozallowfullscreen", "true");
-                            container.appendChild(iframe);
-                        } else if (videoUrl) {
-                            const vid = document.createElement('video');
-                            vid.id = 'videoPlayer';
-                            vid.src = videoUrl;
-                            vid.controls = true;
-                            vid.setAttribute("controlsList", "nodownload");
-                            vid.setAttribute("disablePictureInPicture", "");
-                            vid.setAttribute("playsinline", "");
-                            vid.setAttribute("webkit-playsinline", "");
-                            container.appendChild(vid);
-                        } else {
-                            showBlockedMessage(
-                                "❌ Video Not Found",
-                                "Database mein is episode ka video link nahi mila."
-                            );
-                        }
+                        let serverList = Array.isArray(data.servers) && data.servers.length > 0
+                            ? data.servers
+                            : parseFallbackServers(data.videoUrl);
+
+                        renderServerSelector(serverList, 0);
+                        renderServerStream(serverList.length > 0 ? serverList[0].url : "");
 
                         function moveWatermark() {
                             const containerWidth = container.clientWidth - 160;
