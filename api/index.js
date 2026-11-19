@@ -12,6 +12,43 @@ const ADMIN_TELEGRAM_IDS = (process.env.ADMIN_TELEGRAM_IDS || "6144546817,852805
     .map(id => id.trim())
     .filter(Boolean);
 
+function normalizeServersList(videoUrlInput, serversInput) {
+    let rawList = [];
+
+    if (Array.isArray(serversInput)) {
+        rawList = serversInput;
+    } else if (Array.isArray(videoUrlInput)) {
+        rawList = videoUrlInput;
+    } else if (typeof videoUrlInput === 'string') {
+        const trimmed = videoUrlInput.trim();
+        if (trimmed.startsWith('[')) {
+            try {
+                const parsed = JSON.parse(trimmed);
+                if (Array.isArray(parsed)) rawList = parsed;
+            } catch (_) {
+                rawList = [trimmed];
+            }
+        } else if (trimmed) {
+            rawList = [trimmed];
+        }
+    }
+
+    return rawList
+        .map((item, idx) => {
+            if (typeof item === 'string') {
+                const url = item.trim();
+                return url ? { name: `Server ${idx + 1}`, url } : null;
+            }
+            if (item && typeof item === 'object') {
+                const url = (item.url || '').toString().trim();
+                const name = (item.name || `Server ${idx + 1}`).toString().trim();
+                return url ? { name, url } : null;
+            }
+            return null;
+        })
+        .filter(Boolean);
+}
+
 app.get('/api', (req, res) => {
     res.json({ status: "ok", message: "Vercel Backend & Stream API is Active!" });
 });
@@ -34,8 +71,17 @@ app.get('/api/episodes', async (req, res) => {
 // 2. Publish new episode endpoint (POST)
 app.post('/api/episodes', async (req, res) => {
     try {
-        const { animeName, episodeNumber, title, videoUrl, adLink } = req.body;
+        const { animeName, episodeNumber, title, videoUrl, servers, adLink } = req.body;
         const epId = "ep_" + Date.now();
+
+        const serverList = normalizeServersList(videoUrl, servers);
+        if (serverList.length === 0) {
+            return res.status(400).json({ success: false, error: "At least one valid video URL is required." });
+        }
+
+        const storedVideoValue = serverList.length > 1
+            ? JSON.stringify(serverList.map(s => s.url))
+            : serverList[0].url;
 
         const headers = {
             "apikey": SUPABASE_KEY,
@@ -49,7 +95,7 @@ app.post('/api/episodes', async (req, res) => {
             anime_name: animeName,
             episode_number: episodeNumber,
             title: title || null,
-            video_url: videoUrl,
+            video_url: storedVideoValue,
             ad_link: adLink || null
         };
 
@@ -60,7 +106,7 @@ app.post('/api/episodes', async (req, res) => {
         });
 
         if (response.ok) {
-            res.json({ success: true, id: epId, message: "Episode published successfully!" });
+            res.json({ success: true, id: epId, servers: serverList, message: "Episode published successfully!" });
         } else {
             const err = await response.text();
             res.json({ success: false, error: err });
@@ -74,7 +120,16 @@ app.post('/api/episodes', async (req, res) => {
 app.put('/api/episodes/:id', async (req, res) => {
     try {
         const episodeId = req.params.id;
-        const { animeName, episodeNumber, title, videoUrl, adLink } = req.body;
+        const { animeName, episodeNumber, title, videoUrl, servers, adLink } = req.body;
+
+        const serverList = normalizeServersList(videoUrl, servers);
+        if (serverList.length === 0) {
+            return res.status(400).json({ success: false, error: "At least one valid video URL is required." });
+        }
+
+        const storedVideoValue = serverList.length > 1
+            ? JSON.stringify(serverList.map(s => s.url))
+            : serverList[0].url;
 
         const headers = {
             "apikey": SUPABASE_KEY,
@@ -87,7 +142,7 @@ app.put('/api/episodes/:id', async (req, res) => {
             anime_name: animeName,
             episode_number: episodeNumber,
             title: title || null,
-            video_url: videoUrl
+            video_url: storedVideoValue
         };
         if (adLink !== undefined) {
             updatePayload.ad_link = adLink;
@@ -100,7 +155,7 @@ app.put('/api/episodes/:id', async (req, res) => {
         });
 
         if (response.ok) {
-            res.json({ success: true, message: "Episode updated successfully!" });
+            res.json({ success: true, servers: serverList, message: "Episode updated successfully!" });
         } else {
             const err = await response.text();
             res.json({ success: false, error: err });
@@ -190,7 +245,6 @@ app.get('/api/verify-token', async (req, res) => {
             return res.status(400).json({ success: false, message: "Token missing" });
         }
 
-        // Block external browser / non-Mini App requests
         if (!initDataHeader && (!incomingUserId || incomingUserId === "undefined")) {
             return res.status(403).json({
                 success: false,
@@ -215,7 +269,6 @@ app.get('/api/verify-token', async (req, res) => {
         const expiresAt = new Date(tokenData.expires_at);
         const originalUserId = String(tokenData.user_id);
 
-        // User-Lock check & Telegram Security Alert
         if (incomingUserId && incomingUserId !== "" && incomingUserId !== "undefined" && incomingUserId !== originalUserId) {
             const alertText = `🚨 *Security Alert: Leak / Bypass Attempt Detected!*\n\n👤 Original Owner ID: \`${originalUserId}\`\n🚫 Unauthorized User ID: \`${incomingUserId}\`\n🔗 Episode ID: \`${tokenData.episode_id}\``;
 
@@ -230,19 +283,19 @@ app.get('/api/verify-token', async (req, res) => {
             return res.status(400).json({ success: false, message: "Yeh link kisi aur user ke liye generate ki gayi hai! Aap ise use nahi kar sakte." });
         }
 
-        // Single-use check
         if (uses >= 1) {
             return res.status(400).json({ success: false, message: "Yeh link pehle hi use ho chuki hai aur ab expire ho gayi hai!" });
         }
 
-        // Expiry check
         if (new Date() > expiresAt) {
             return res.status(400).json({ success: false, message: "Token time expired!" });
         }
 
         const epRes = await fetch(`${SUPABASE_URL}/rest/v1/episodes?id=eq.${tokenData.episode_id}&select=video_url`, { headers });
         const epData = await epRes.json();
-        const videoUrl = (epData && epData.length > 0) ? epData[0].video_url : "";
+        const rawVideoValue = (epData && epData.length > 0) ? epData[0].video_url : "";
+        const servers = normalizeServersList(rawVideoValue, null);
+        const videoUrl = servers.length > 0 ? servers[0].url : "";
 
         await fetch(`${SUPABASE_URL}/rest/v1/episode_tokens?token=eq.${token}`, {
             method: 'PATCH',
@@ -257,7 +310,8 @@ app.get('/api/verify-token', async (req, res) => {
             success: true,
             episodeId: tokenData.episode_id,
             userId: tokenData.user_id,
-            videoUrl: videoUrl
+            videoUrl: videoUrl,
+            servers: servers
         });
 
     } catch (error) {
