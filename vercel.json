@@ -1,0 +1,8 @@
+{
+  "version": 2,
+  "rewrites": [
+    { "source": "/admin.html", "destination": "/public/admin.html" },
+    { "source": "/watch.html", "destination": "/public/watch.html" },
+    { "source": "/api/(.*)", "destination": "/api/index.js" }
+  ]
+}
