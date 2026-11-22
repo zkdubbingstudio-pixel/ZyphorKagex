@@ -157,11 +157,23 @@
         .blocked-box h2 {
             color: #ff4d4d;
             margin-bottom: 10px;
+            font-size: 20px;
         }
         .blocked-box p {
             color: #cccccc;
             font-size: 14px;
             line-height: 1.5;
+            margin-bottom: 16px;
+        }
+        .retry-btn {
+            background: #ffcc00;
+            color: #000000;
+            border: none;
+            border-radius: 6px;
+            padding: 9px 18px;
+            font-size: 13px;
+            font-weight: bold;
+            cursor: pointer;
         }
     </style>
 </head>
@@ -169,7 +181,7 @@
 
     <div class="header-bar" id="headerBar">
         <div class="header-left">
-            <img src="https://i.ibb.co/2Yp3CDq9/file-000000006f2c8211b20c6bedc9f9ac12.png" alt="ZK Logo">
+            <img src="https://i.ibb.co/2Yp3CDq9/file-000000006f2c8211b20c6bedc9f9ac12.png" alt="ZK Logo" onerror="this.style.display='none'">
             <span>ZK Dubbing Studio</span>
         </div>
         <button type="button" class="theater-btn" id="enterTheaterBtn">⛶ Fullscreen</button>
@@ -194,14 +206,17 @@
         }
 
         const initData = tg && typeof tg.initData === 'string' ? tg.initData.trim() : '';
-        const telegramUserId = tg && tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.id
+        const tgUserId = tg && tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.id
             ? String(tg.initDataUnsafe.user.id)
+            : '';
+        const tgChatId = tg && tg.initDataUnsafe && tg.initDataUnsafe.chat && tg.initDataUnsafe.chat.id
+            ? String(tg.initDataUnsafe.chat.id)
             : '';
 
         const urlParams = new URLSearchParams(window.location.search);
         const token = urlParams.get('token');
-        const fallbackUserId = urlParams.get('userId') || '';
-        const effectiveUserId = telegramUserId || fallbackUserId;
+        const queryUserId = urlParams.get('userId') || '';
+        const effectiveUserId = tgUserId || queryUserId || tgChatId;
 
         const container = document.getElementById('playerContainer');
         const watermark = document.getElementById('watermark');
@@ -274,7 +289,8 @@
             if (!videoUrl) {
                 showBlockedMessage(
                     "❌ Video Not Found",
-                    "Database mein is episode ka video link nahi mila."
+                    "Database mein is episode ka video link nahi mila.",
+                    true
                 );
                 return;
             }
@@ -351,7 +367,7 @@
             });
         }
 
-        function showBlockedMessage(titleText, descText) {
+        function showBlockedMessage(titleText, descText, showRetry = false) {
             watermark.style.display = 'none';
             enterTheaterBtn.style.display = 'none';
             serverBar.style.display = 'none';
@@ -368,23 +384,44 @@
 
             box.appendChild(h2);
             box.appendChild(p);
+
+            if (showRetry) {
+                const retryBtn = document.createElement('button');
+                retryBtn.type = 'button';
+                retryBtn.className = 'retry-btn';
+                retryBtn.textContent = '🔄 Dobara Load Karein';
+                retryBtn.addEventListener('click', () => {
+                    window.location.reload();
+                });
+                box.appendChild(retryBtn);
+            }
+
             container.appendChild(box);
         }
 
         if (!isInsideTelegramMiniApp) {
             showBlockedMessage(
                 "🚫 Access Denied (Telegram Mini App Only)",
-                "Yeh episode external browser (Chrome) ya kisi aur jagah nahi chal sakta. Kripya Telegram bot ke andar Mini App se hi open karein."
+                "Yeh episode external browser (Chrome) ya kisi aur jagah nahi chal sakta. Kripya Telegram bot ke andar Mini App se hi open karein.",
+                false
             );
         } else if (!token) {
             showBlockedMessage(
                 "⚠️ Invalid or Expired Link",
-                "Link valid nahi hai ya expire ho chuka hai."
+                "Link valid nahi hai ya expire ho chuka hai.",
+                false
             );
         } else {
             const verifyUrl = `/api/verify-token?token=${encodeURIComponent(token)}&userId=${encodeURIComponent(effectiveUserId)}`;
             const controller = new AbortController();
-            const timer = setTimeout(() => controller.abort(), 8000);
+            const timer = setTimeout(() => {
+                controller.abort();
+                showBlockedMessage(
+                    "⏳ Loading Timeout",
+                    "Server se response aane mein zyada time lag raha hai. Niche button se dobara try karein.",
+                    true
+                );
+            }, 5000);
 
             fetch(verifyUrl, {
                 headers: {
@@ -425,17 +462,18 @@
                     } else {
                         showBlockedMessage(
                             "❌ Access Blocked",
-                            data.message || "Link expire ho chuka hai ya Telegram Mini App verification fail hua."
+                            data.message || "Link expire ho chuka hai ya Telegram Mini App verification fail hua.",
+                            true
                         );
                     }
                 })
                 .catch(err => {
                     clearTimeout(timer);
+                    if (err.name === "AbortError") return;
                     showBlockedMessage(
                         "❌ Server Error",
-                        err.name === "AbortError"
-                            ? "Server response mein zyada time lag raha hai. Kripya dobara try karein."
-                            : "Video verify karne mein server error aaya hai."
+                        "Video verify karne mein server error aaya hai.",
+                        true
                     );
                 });
         }
