@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Kitsu Player - ZK Dubbing Studio</title>
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="https://telegram.org/js/telegram-web-app.js" defer></script>
     <style>
         * {
             box-sizing: border-box;
@@ -225,32 +225,26 @@
         const serverBar = document.getElementById('serverBar');
         const serverButtons = document.getElementById('serverButtons');
 
-        function checkTelegramMiniAppContext() {
-            if (!tg) return false;
-            const isExternalFlag = urlParams.get('browser') === '1' || urlParams.get('external') === '1';
-            if (isExternalFlag) return false;
-            return true;
-        }
-
-        const isInsideTelegramMiniApp = checkTelegramMiniAppContext();
-
         function toggleMiniAppFullscreen(enable) {
-            if (!tg) return;
             if (enable) {
                 document.body.classList.add('theater-mode');
-                try { tg.expand(); } catch (_) {}
-                try {
-                    if (typeof tg.requestFullscreen === 'function') {
-                        tg.requestFullscreen();
-                    }
-                } catch (_) {}
+                if (tg) {
+                    try { tg.expand(); } catch (_) {}
+                    try {
+                        if (typeof tg.requestFullscreen === 'function') {
+                            tg.requestFullscreen();
+                        }
+                    } catch (_) {}
+                }
             } else {
                 document.body.classList.remove('theater-mode');
-                try {
-                    if (typeof tg.exitFullscreen === 'function') {
-                        tg.exitFullscreen();
-                    }
-                } catch (_) {}
+                if (tg) {
+                    try {
+                        if (typeof tg.exitFullscreen === 'function') {
+                            tg.exitFullscreen();
+                        }
+                    } catch (_) {}
+                }
             }
         }
 
@@ -399,13 +393,7 @@
             container.appendChild(box);
         }
 
-        if (!isInsideTelegramMiniApp) {
-            showBlockedMessage(
-                "🚫 Access Denied (Telegram Mini App Only)",
-                "Yeh episode external browser (Chrome) ya kisi aur jagah nahi chal sakta. Kripya Telegram bot ke andar Mini App se hi open karein.",
-                false
-            );
-        } else if (!token) {
+        if (!token) {
             showBlockedMessage(
                 "⚠️ Invalid or Expired Link",
                 "Link valid nahi hai ya expire ho chuka hai.",
@@ -423,17 +411,17 @@
                 );
             }, 5000);
 
+            const headers = {};
+            if (initData) {
+                headers["X-Telegram-Init-Data"] = initData;
+            }
+
             fetch(verifyUrl, {
-                headers: {
-                    "X-Telegram-Init-Data": initData
-                },
+                headers,
                 signal: controller.signal
             })
                 .then(res => {
                     clearTimeout(timer);
-                    if (!res.ok) {
-                        throw new Error(`HTTP ${res.status}`);
-                    }
                     return res.json();
                 })
                 .then(data => {
@@ -462,7 +450,7 @@
                     } else {
                         showBlockedMessage(
                             "❌ Access Blocked",
-                            data.message || "Link expire ho chuka hai ya Telegram Mini App verification fail hua.",
+                            data.message || "Link expire ho chuka hai ya verify nahi ho paaya.",
                             true
                         );
                     }
