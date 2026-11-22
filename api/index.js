@@ -269,7 +269,7 @@ app.get('/api/get-watch-token', async (req, res) => {
     }
 });
 
-// 6. Token Verify Endpoint (Mini App Only, User-Lock, Max 2 Uses & 3-Min Tap Expiry)
+// 6. Token Verify Endpoint (User-Lock, Max 2 Uses & 3-Min Tap Expiry)
 app.get('/api/verify-token', async (req, res) => {
     try {
         const token = req.query.token;
@@ -280,13 +280,6 @@ app.get('/api/verify-token', async (req, res) => {
 
         if (!token) {
             return res.status(400).json({ success: false, message: "Token missing" });
-        }
-
-        if (!initDataHeader && (!incomingUserId || incomingUserId === "undefined")) {
-            return res.status(403).json({
-                success: false,
-                message: "Yeh episode sirf Telegram Mini App ke andar hi chal sakta hai."
-            });
         }
 
         const headers = {
@@ -306,8 +299,8 @@ app.get('/api/verify-token', async (req, res) => {
         const expiresAt = new Date(tokenData.expires_at);
         const originalUserId = String(tokenData.user_id).trim();
 
-        if (!incomingUserId || incomingUserId === "undefined" || incomingUserId !== originalUserId) {
-            const alertText = `🚨 *Security Alert: Leak / Bypass Attempt Detected!*\n\n👤 Original Owner ID: \`${originalUserId}\`\n🚫 Unauthorized User ID: \`${incomingUserId || "Unknown"}\`\n🔗 Episode ID: \`${tokenData.episode_id}\``;
+        if (incomingUserId && incomingUserId !== "undefined" && incomingUserId !== originalUserId) {
+            const alertText = `🚨 *Security Alert: Leak / Bypass Attempt Detected!*\n\n👤 Original Owner ID: \`${originalUserId}\`\n🚫 Unauthorized User ID: \`${incomingUserId}\`\n🔗 Episode ID: \`${tokenData.episode_id}\``;
 
             for (const adminId of ADMIN_TELEGRAM_IDS) {
                 fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
