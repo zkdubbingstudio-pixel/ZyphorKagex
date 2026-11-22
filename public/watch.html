@@ -189,16 +189,14 @@
     <script>
         const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
         if (tg) {
-            tg.ready();
-            tg.expand();
+            try { tg.ready(); } catch (_) {}
+            try { tg.expand(); } catch (_) {}
         }
 
         const initData = tg && typeof tg.initData === 'string' ? tg.initData.trim() : '';
         const telegramUserId = tg && tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.id
             ? String(tg.initDataUnsafe.user.id)
             : '';
-
-        const isInsideTelegramMiniApp = Boolean(tg && (initData.length > 0 || telegramUserId.length > 0));
 
         const urlParams = new URLSearchParams(window.location.search);
         const token = urlParams.get('token');
@@ -209,23 +207,37 @@
         const serverBar = document.getElementById('serverBar');
         const serverButtons = document.getElementById('serverButtons');
 
+        function checkTelegramMiniAppContext() {
+            if (!tg) return false;
+            const hasInitData = initData.length > 0;
+            const hasUser = Boolean(tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.id);
+            const hasChat = Boolean(tg.initDataUnsafe && tg.initDataUnsafe.chat && tg.initDataUnsafe.chat.id);
+            const hasHashParams = window.location.hash.includes('tgWebAppData=') || window.location.hash.includes('tgWebAppVersion=');
+            const hasPlatform = Boolean(tg.platform && tg.platform !== 'unknown');
+            const isTgUserAgent = /Telegram/i.test(navigator.userAgent || '');
+
+            return hasInitData || hasUser || hasChat || hasHashParams || (hasPlatform && isTgUserAgent);
+        }
+
+        const isInsideTelegramMiniApp = checkTelegramMiniAppContext();
+
         function toggleMiniAppFullscreen(enable) {
             if (!tg) return;
             if (enable) {
                 document.body.classList.add('theater-mode');
-                tg.expand();
+                try { tg.expand(); } catch (_) {}
                 try {
                     if (typeof tg.requestFullscreen === 'function') {
                         tg.requestFullscreen();
                     }
-                } catch (e) {}
+                } catch (_) {}
             } else {
                 document.body.classList.remove('theater-mode');
                 try {
                     if (typeof tg.exitFullscreen === 'function') {
                         tg.exitFullscreen();
                     }
-                } catch (e) {}
+                } catch (_) {}
             }
         }
 
@@ -282,6 +294,7 @@
                 vid.id = 'videoPlayer';
                 vid.src = videoUrl;
                 vid.controls = true;
+                vid.autoplay = true;
                 vid.setAttribute("controlsList", "nodownload");
                 vid.setAttribute("disablePictureInPicture", "");
                 vid.setAttribute("playsinline", "");
