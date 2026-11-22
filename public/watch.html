@@ -385,13 +385,22 @@
             );
         } else {
             const verifyUrl = `/api/verify-token?token=${encodeURIComponent(token)}&userId=${encodeURIComponent(telegramUserId)}`;
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), 8000);
 
             fetch(verifyUrl, {
                 headers: {
                     "X-Telegram-Init-Data": initData
-                }
+                },
+                signal: controller.signal
             })
-                .then(res => res.json())
+                .then(res => {
+                    clearTimeout(timer);
+                    if (!res.ok) {
+                        throw new Error(`HTTP ${res.status}`);
+                    }
+                    return res.json();
+                })
                 .then(data => {
                     if (data.success) {
                         const userId = data.userId || telegramUserId || "Protected";
@@ -422,10 +431,13 @@
                         );
                     }
                 })
-                .catch(() => {
+                .catch(err => {
+                    clearTimeout(timer);
                     showBlockedMessage(
                         "❌ Server Error",
-                        "Video verify karne mein server error aaya hai."
+                        err.name === "AbortError"
+                            ? "Server response mein zyada time lag raha hai. Kripya dobara try karein."
+                            : "Video verify karne mein server error aaya hai."
                     );
                 });
         }
