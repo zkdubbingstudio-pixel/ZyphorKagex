@@ -116,6 +116,38 @@
             text-shadow: 1px 1px 2px rgba(0,0,0,0.7);
             white-space: nowrap;
         }
+        .loading-box, .blocked-box {
+            text-align: center;
+            padding: 24px;
+            max-width: 420px;
+        }
+        .loading-box p {
+            color: #ffcc00;
+            font-size: 14px;
+            font-weight: bold;
+            margin: 0;
+        }
+        .blocked-box h2 {
+            color: #ff4d4d;
+            margin-bottom: 10px;
+            font-size: 20px;
+        }
+        .blocked-box p {
+            color: #cccccc;
+            font-size: 14px;
+            line-height: 1.5;
+            margin-bottom: 16px;
+        }
+        .retry-btn {
+            background: #ffcc00;
+            color: #000000;
+            border: none;
+            border-radius: 6px;
+            padding: 9px 18px;
+            font-size: 13px;
+            font-weight: bold;
+            cursor: pointer;
+        }
         .server-bar {
             display: flex;
             align-items: center;
@@ -149,32 +181,6 @@
             color: #000000;
             border-color: #ffcc00;
         }
-        .blocked-box {
-            text-align: center;
-            padding: 24px;
-            max-width: 420px;
-        }
-        .blocked-box h2 {
-            color: #ff4d4d;
-            margin-bottom: 10px;
-            font-size: 20px;
-        }
-        .blocked-box p {
-            color: #cccccc;
-            font-size: 14px;
-            line-height: 1.5;
-            margin-bottom: 16px;
-        }
-        .retry-btn {
-            background: #ffcc00;
-            color: #000000;
-            border: none;
-            border-radius: 6px;
-            padding: 9px 18px;
-            font-size: 13px;
-            font-weight: bold;
-            cursor: pointer;
-        }
     </style>
 </head>
 <body oncontextmenu="return false;">
@@ -191,6 +197,9 @@
 
     <div class="player-container" id="playerContainer">
         <div id="watermark">ID: Loading...</div>
+        <div class="loading-box" id="loadingBox">
+            <p>⏳ Episode load ho raha hai...</p>
+        </div>
     </div>
 
     <div class="server-bar" id="serverBar" style="display: none;">
@@ -220,6 +229,7 @@
 
         const container = document.getElementById('playerContainer');
         const watermark = document.getElementById('watermark');
+        const loadingBox = document.getElementById('loadingBox');
         const enterTheaterBtn = document.getElementById('enterTheaterBtn');
         const exitTheaterBtn = document.getElementById('exitTheaterBtn');
         const serverBar = document.getElementById('serverBar');
@@ -260,6 +270,7 @@
         });
 
         function clearMediaElements() {
+            if (loadingBox) loadingBox.style.display = 'none';
             const existingMedia = container.querySelectorAll('iframe, video, .blocked-box');
             existingMedia.forEach(el => el.remove());
         }
@@ -409,7 +420,7 @@
                     "Server se response aane mein zyada time lag raha hai. Niche button se dobara try karein.",
                     true
                 );
-            }, 5000);
+            }, 12000);
 
             const headers = {};
             if (initData) {
