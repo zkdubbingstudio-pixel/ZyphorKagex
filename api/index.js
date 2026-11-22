@@ -12,6 +12,9 @@ const ADMIN_TELEGRAM_IDS = (process.env.ADMIN_TELEGRAM_IDS || "6144546817,852805
     .map(id => id.trim())
     .filter(Boolean);
 
+const MAX_TOKEN_USES = 2;
+const TOKEN_EXPIRY_MS = 3 * 60 * 1000; // 3 minutes
+
 function normalizeServersList(videoUrlInput, serversInput) {
     let rawList = [];
 
@@ -49,6 +52,26 @@ function normalizeServersList(videoUrlInput, serversInput) {
         .filter(Boolean);
 }
 
+function extractUserIdFromInitData(initDataHeader) {
+    if (!initDataHeader) return "";
+    try {
+        const params = new URLSearchParams(initDataHeader);
+        const userRaw = params.get("user");
+        if (!userRaw) return "";
+        const parsedUser = JSON.parse(userRaw);
+        return parsedUser && parsedUser.id ? String(parsedUser.id).trim() : "";
+    } catch (_) {
+        return "";
+    }
+}
+
+function isAdminRequest(req) {
+    const headerAdminId = (req.headers["x-admin-id"] || "").toString().trim();
+    const initDataUserId = extractUserIdFromInitData((req.headers["x-telegram-init-data"] || "").toString().trim());
+    const candidateId = initDataUserId || headerAdminId;
+    return Boolean(candidateId && ADMIN_TELEGRAM_IDS.includes(candidateId));
+}
+
 app.get('/api', (req, res) => {
     res.json({ status: "ok", message: "Vercel Backend & Stream API is Active!" });
 });
@@ -70,6 +93,10 @@ app.get('/api/episodes', async (req, res) => {
 
 // 2. Publish new episode endpoint (POST)
 app.post('/api/episodes', async (req, res) => {
+    if (!isAdminRequest(req)) {
+        return res.status(403).json({ success: false, error: "Unauthorized admin access." });
+    }
+
     try {
         const { animeName, episodeNumber, title, videoUrl, servers, adLink } = req.body;
         const epId = "ep_" + Date.now();
@@ -118,6 +145,10 @@ app.post('/api/episodes', async (req, res) => {
 
 // 3. Episode Update (Edit) Endpoint (PUT)
 app.put('/api/episodes/:id', async (req, res) => {
+    if (!isAdminRequest(req)) {
+        return res.status(403).json({ success: false, error: "Unauthorized admin access." });
+    }
+
     try {
         const episodeId = req.params.id;
         const { animeName, episodeNumber, title, videoUrl, servers, adLink } = req.body;
@@ -167,6 +198,10 @@ app.put('/api/episodes/:id', async (req, res) => {
 
 // 4. Episode Delete Endpoint (DELETE)
 app.delete('/api/episodes/:id', async (req, res) => {
+    if (!isAdminRequest(req)) {
+        return res.status(403).json({ success: false, error: "Unauthorized admin access." });
+    }
+
     try {
         const episodeId = req.params.id;
         const headers = {
@@ -191,7 +226,7 @@ app.delete('/api/episodes/:id', async (req, res) => {
     }
 });
 
-// 5. Token Generate Endpoint
+// 5. Token Generate Endpoint (3-Minute Expiry)
 app.get('/api/get-watch-token', async (req, res) => {
     try {
         const episodeId = req.query.episodeId;
@@ -202,7 +237,7 @@ app.get('/api/get-watch-token', async (req, res) => {
         }
 
         const token = crypto.randomBytes(16).toString('hex');
-        const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+        const expiresAt = new Date(Date.now() + TOKEN_EXPIRY_MS).toISOString();
 
         const payload = {
             token: token,
@@ -224,7 +259,7 @@ app.get('/api/get-watch-token', async (req, res) => {
         });
 
         if (response.ok) {
-            return res.json({ success: true, token: token });
+            return res.json({ success: true, token: token, expiresInSeconds: 180, maxUses: MAX_TOKEN_USES });
         } else {
             const errText = await response.text();
             return res.status(500).json({ success: false, message: "Database error: " + errText });
@@ -234,12 +269,14 @@ app.get('/api/get-watch-token', async (req, res) => {
     }
 });
 
-// 6. Token Verify Endpoint (Mini App Only, User-Lock, Single-Use & Security Alert)
+// 6. Token Verify Endpoint (Mini App Only, User-Lock, Max 2 Uses & 3-Min Tap Expiry)
 app.get('/api/verify-token', async (req, res) => {
     try {
         const token = req.query.token;
-        const incomingUserId = (req.query.userId || "").toString().trim();
+        const queryUserId = (req.query.userId || "").toString().trim();
         const initDataHeader = (req.headers["x-telegram-init-data"] || "").toString().trim();
+        const verifiedTgUserId = extractUserIdFromInitData(initDataHeader);
+        const incomingUserId = verifiedTgUserId || queryUserId;
 
         if (!token) {
             return res.status(400).json({ success: false, message: "Token missing" });
@@ -265,12 +302,12 @@ app.get('/api/verify-token', async (req, res) => {
         }
 
         const tokenData = data[0];
-        const uses = tokenData.uses || 0;
+        const uses = Number(tokenData.uses || 0);
         const expiresAt = new Date(tokenData.expires_at);
-        const originalUserId = String(tokenData.user_id);
+        const originalUserId = String(tokenData.user_id).trim();
 
-        if (incomingUserId && incomingUserId !== "" && incomingUserId !== "undefined" && incomingUserId !== originalUserId) {
-            const alertText = `🚨 *Security Alert: Leak / Bypass Attempt Detected!*\n\n👤 Original Owner ID: \`${originalUserId}\`\n🚫 Unauthorized User ID: \`${incomingUserId}\`\n🔗 Episode ID: \`${tokenData.episode_id}\``;
+        if (!incomingUserId || incomingUserId === "undefined" || incomingUserId !== originalUserId) {
+            const alertText = `🚨 *Security Alert: Leak / Bypass Attempt Detected!*\n\n👤 Original Owner ID: \`${originalUserId}\`\n🚫 Unauthorized User ID: \`${incomingUserId || "Unknown"}\`\n🔗 Episode ID: \`${tokenData.episode_id}\``;
 
             for (const adminId of ADMIN_TELEGRAM_IDS) {
                 fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
@@ -280,15 +317,24 @@ app.get('/api/verify-token', async (req, res) => {
                 }).catch(err => console.log("Alert send error:", err));
             }
 
-            return res.status(400).json({ success: false, message: "Yeh link kisi aur user ke liye generate ki gayi hai! Aap ise use nahi kar sakte." });
-        }
-
-        if (uses >= 1) {
-            return res.status(400).json({ success: false, message: "Yeh link pehle hi use ho chuki hai aur ab expire ho gayi hai!" });
+            return res.status(403).json({
+                success: false,
+                message: "Yeh link sirf original user ke liye hai! Kisi aur user ke account mein yeh kaam nahi karegi."
+            });
         }
 
         if (new Date() > expiresAt) {
-            return res.status(400).json({ success: false, message: "Token time expired!" });
+            return res.status(400).json({
+                success: false,
+                message: "Link expire ho chuki hai! (3 minute ke andar tap karna zaroori tha)."
+            });
+        }
+
+        if (uses >= MAX_TOKEN_USES) {
+            return res.status(400).json({
+                success: false,
+                message: "Yeh link maximum 2 baar use ho chuki hai aur ab expire ho gayi hai!"
+            });
         }
 
         const epRes = await fetch(`${SUPABASE_URL}/rest/v1/episodes?id=eq.${tokenData.episode_id}&select=video_url`, { headers });
@@ -297,19 +343,22 @@ app.get('/api/verify-token', async (req, res) => {
         const servers = normalizeServersList(rawVideoValue, null);
         const videoUrl = servers.length > 0 ? servers[0].url : "";
 
+        const nextUses = uses + 1;
         await fetch(`${SUPABASE_URL}/rest/v1/episode_tokens?token=eq.${token}`, {
             method: 'PATCH',
             headers: {
                 ...headers,
                 "Content-Type": "application/json"
             },
-            body: JSON.stringify({ uses: uses + 1 })
+            body: JSON.stringify({ uses: nextUses })
         });
 
         return res.json({
             success: true,
             episodeId: tokenData.episode_id,
-            userId: tokenData.user_id,
+            userId: originalUserId,
+            uses: nextUses,
+            remainingUses: Math.max(0, MAX_TOKEN_USES - nextUses),
             videoUrl: videoUrl,
             servers: servers
         });
