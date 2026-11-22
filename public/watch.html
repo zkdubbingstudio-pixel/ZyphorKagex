@@ -200,6 +200,9 @@
 
         const urlParams = new URLSearchParams(window.location.search);
         const token = urlParams.get('token');
+        const fallbackUserId = urlParams.get('userId') || '';
+        const effectiveUserId = telegramUserId || fallbackUserId;
+
         const container = document.getElementById('playerContainer');
         const watermark = document.getElementById('watermark');
         const enterTheaterBtn = document.getElementById('enterTheaterBtn');
@@ -209,14 +212,9 @@
 
         function checkTelegramMiniAppContext() {
             if (!tg) return false;
-            const hasInitData = initData.length > 0;
-            const hasUser = Boolean(tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.id);
-            const hasChat = Boolean(tg.initDataUnsafe && tg.initDataUnsafe.chat && tg.initDataUnsafe.chat.id);
-            const hasHashParams = window.location.hash.includes('tgWebAppData=') || window.location.hash.includes('tgWebAppVersion=');
-            const hasPlatform = Boolean(tg.platform && tg.platform !== 'unknown');
-            const isTgUserAgent = /Telegram/i.test(navigator.userAgent || '');
-
-            return hasInitData || hasUser || hasChat || hasHashParams || (hasPlatform && isTgUserAgent);
+            const isExternalFlag = urlParams.get('browser') === '1' || urlParams.get('external') === '1';
+            if (isExternalFlag) return false;
+            return true;
         }
 
         const isInsideTelegramMiniApp = checkTelegramMiniAppContext();
@@ -384,7 +382,7 @@
                 "Link valid nahi hai ya expire ho chuka hai."
             );
         } else {
-            const verifyUrl = `/api/verify-token?token=${encodeURIComponent(token)}&userId=${encodeURIComponent(telegramUserId)}`;
+            const verifyUrl = `/api/verify-token?token=${encodeURIComponent(token)}&userId=${encodeURIComponent(effectiveUserId)}`;
             const controller = new AbortController();
             const timer = setTimeout(() => controller.abort(), 8000);
 
@@ -403,7 +401,7 @@
                 })
                 .then(data => {
                     if (data.success) {
-                        const userId = data.userId || telegramUserId || "Protected";
+                        const userId = data.userId || effectiveUserId || "Protected";
                         watermark.textContent = `ID: ${userId} | ZK Dubbing`;
 
                         let serverList = Array.isArray(data.servers) && data.servers.length > 0
