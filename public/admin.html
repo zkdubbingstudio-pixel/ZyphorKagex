@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kitsu Admin Panel - ZK Dubbing Studio</title>
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="https://telegram.org/js/telegram-web-app.js" defer></script>
     <style>
         body {
             background-color: #0f0f0f;
@@ -206,288 +206,294 @@
     </div>
 
     <script>
-        const ALLOWED_TELEGRAM_IDS = ["6144546817", "8528056660"];
-        const ADMIN_PASSWORD = atob("QXRyaW5hbmRhbjg3"); // Atrinandan87
+        (function () {
+            const ALLOWED_TELEGRAM_IDS = ["6144546817", "8528056660"];
+            const ADMIN_PASSWORD = atob("QXRyaW5hbmRhbjg3"); // Atrinandan87
 
-        const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
-        if (tg) {
-            try { tg.ready(); } catch (_) {}
-            try { tg.expand(); } catch (_) {}
-        }
+            const loginBox = document.getElementById('loginBox');
+            const adminContainer = document.getElementById('adminContainer');
+            const adminLoginForm = document.getElementById('adminLoginForm');
+            const loginTelegramIdInput = document.getElementById('loginTelegramId');
+            const loginPasswordInput = document.getElementById('loginPassword');
+            const loginError = document.getElementById('loginError');
 
-        const initData = tg && typeof tg.initData === 'string' ? tg.initData.trim() : '';
-        const tgUserId = tg && tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.id
-            ? String(tg.initDataUnsafe.user.id)
-            : '';
+            let initData = '';
+            let tgUserId = '';
 
-        const loginBox = document.getElementById('loginBox');
-        const adminContainer = document.getElementById('adminContainer');
-        const adminLoginForm = document.getElementById('adminLoginForm');
-        const loginTelegramIdInput = document.getElementById('loginTelegramId');
-        const loginPasswordInput = document.getElementById('loginPassword');
-        const loginError = document.getElementById('loginError');
-
-        if (tgUserId && ALLOWED_TELEGRAM_IDS.includes(tgUserId)) {
-            loginTelegramIdInput.value = tgUserId;
-        }
-
-        let activeAdminId = null;
-        let panelInitialized = false;
-
-        function adminHeaders(includeJson = false) {
-            const headers = {
-                'X-Admin-Id': String(activeAdminId)
-            };
-            if (initData) {
-                headers['X-Telegram-Init-Data'] = initData;
-            }
-            if (includeJson) {
-                headers['Content-Type'] = 'application/json';
-            }
-            return headers;
-        }
-
-        adminLoginForm.addEventListener('submit', (e) => {
-            e.preventDefault();
-            const enteredId = loginTelegramIdInput.value.trim();
-            const enteredPass = loginPasswordInput.value;
-
-            if (!ALLOWED_TELEGRAM_IDS.includes(enteredId)) {
-                loginError.textContent = "Galat Telegram ID! Sirf authorized admin ID allowed hai.";
-                return;
-            }
-
-            if (enteredPass !== ADMIN_PASSWORD) {
-                loginError.textContent = "Galat Password! Dobara koshish karein.";
-                return;
-            }
-
-            loginError.textContent = "";
-            activeAdminId = enteredId;
-            loginBox.style.display = 'none';
-            adminContainer.style.display = 'block';
-
-            if (!panelInitialized) {
-                panelInitialized = true;
-                initAdminPanel();
-            }
-        });
-
-        function initAdminPanel() {
-            let allEpisodes = [];
-            const serversContainer = document.getElementById('serversContainer');
-            const addServerBtn = document.getElementById('addServerBtn');
-
-            function updateServerPlaceholders() {
-                const rows = serversContainer.querySelectorAll('.server-row');
-                rows.forEach((row, idx) => {
-                    const inp = row.querySelector('.server-url-input');
-                    if (inp) {
-                        inp.placeholder = `Server ${idx + 1} URL (VDOHide / Filemoon / Embed)`;
-                        inp.required = idx === 0;
-                    }
-                });
-            }
-
-            function createServerRow(value = '', isFirst = false) {
-                const row = document.createElement('div');
-                row.className = 'server-row';
-
-                const input = document.createElement('input');
-                input.type = 'text';
-                input.className = 'server-url-input';
-                input.value = value;
-                input.required = isFirst;
-                row.appendChild(input);
-
-                if (!isFirst) {
-                    const removeBtn = document.createElement('button');
-                    removeBtn.type = 'button';
-                    removeBtn.className = 'remove-server-btn';
-                    removeBtn.textContent = '✕';
-                    removeBtn.title = 'Remove Server';
-                    removeBtn.addEventListener('click', () => {
-                        row.remove();
-                        updateServerPlaceholders();
-                    });
-                    row.appendChild(removeBtn);
+            try {
+                const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
+                if (tg) {
+                    if (typeof tg.ready === 'function') tg.ready();
+                    if (typeof tg.expand === 'function') tg.expand();
+                    initData = typeof tg.initData === 'string' ? tg.initData.trim() : '';
+                    tgUserId = tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.id
+                        ? String(tg.initDataUnsafe.user.id)
+                        : '';
                 }
+            } catch (_) {}
 
-                return row;
+            if (tgUserId && ALLOWED_TELEGRAM_IDS.includes(tgUserId)) {
+                loginTelegramIdInput.value = tgUserId;
             }
 
-            function setServerInputs(urls = []) {
-                serversContainer.innerHTML = '';
-                const list = Array.isArray(urls) && urls.length > 0 ? urls : [''];
-                list.forEach((url, idx) => {
-                    serversContainer.appendChild(createServerRow(url, idx === 0));
-                });
-                updateServerPlaceholders();
-            }
+            let activeAdminId = null;
+            let panelInitialized = false;
 
-            function parseStoredVideoUrls(rawValue) {
-                if (!rawValue) return [''];
-                if (Array.isArray(rawValue)) {
-                    return rawValue.map(v => typeof v === 'string' ? v : (v && v.url ? v.url : '')).filter(Boolean);
+            function adminHeaders(includeJson = false) {
+                const headers = {
+                    'X-Admin-Id': String(activeAdminId)
+                };
+                if (initData) {
+                    headers['X-Telegram-Init-Data'] = initData;
                 }
-                if (typeof rawValue === 'string') {
-                    const trimmed = rawValue.trim();
-                    if (trimmed.startsWith('[')) {
-                        try {
-                            const parsed = JSON.parse(trimmed);
-                            if (Array.isArray(parsed)) {
-                                const items = parsed.map(v => typeof v === 'string' ? v : (v && v.url ? v.url : '')).filter(Boolean);
-                                return items.length > 0 ? items : [''];
-                            }
-                        } catch (_) {}
-                    }
-                    return [trimmed];
+                if (includeJson) {
+                    headers['Content-Type'] = 'application/json';
                 }
-                return [''];
+                return headers;
             }
 
-            function getCollectedServers() {
-                const inputs = Array.from(serversContainer.querySelectorAll('.server-url-input'));
-                return inputs
-                    .map((inp, idx) => ({
-                        name: `Server ${idx + 1}`,
-                        url: inp.value.trim()
-                    }))
-                    .filter(s => s.url.length > 0);
-            }
-
-            addServerBtn.addEventListener('click', () => {
-                serversContainer.appendChild(createServerRow('', false));
-                updateServerPlaceholders();
-            });
-
-            async function fetchEpisodes() {
-                try {
-                    const res = await fetch('/api/episodes', {
-                        headers: adminHeaders(false)
-                    });
-                    if (!res.ok) {
-                        throw new Error(`HTTP ${res.status}`);
-                    }
-                    allEpisodes = await res.json();
-                    const listDiv = document.getElementById('episodesList');
-
-                    if (!Array.isArray(allEpisodes) || allEpisodes.length === 0) {
-                        listDiv.innerHTML = "<p>No episodes published yet.</p>";
-                        return;
-                    }
-
-                    listDiv.innerHTML = allEpisodes.map(ep => {
-                        const botLink = `https://t.me/Kitsu_zk_bot?start=${ep.id}`;
-                        const serverCount = parseStoredVideoUrls(ep.video_url).filter(Boolean).length;
-                        const serverBadge = serverCount > 1 ? ` • <span style="color:#ffcc00;">${serverCount} Servers</span>` : '';
-                        return `
-                            <div class="episode-item">
-                                <strong>${ep.anime_name} - Ep ${ep.episode_number}</strong>${serverBadge}<br>
-                                <small style="color: #aaa;">${ep.title || 'No title'}</small><br>
-                                <span style="color: #00aaee; font-size: 11px; word-break: break-all;">Bot Link: ${botLink}</span>
-                                <div class="btn-group">
-                                    <button class="btn-copy" onclick="copyLink('${botLink}')">Copy Link</button>
-                                    <button class="btn-edit" onclick="editEpisode('${ep.id}')">Edit</button>
-                                    <button class="btn-delete" onclick="deleteEpisode('${ep.id}')">Delete</button>
-                                </div>
-                            </div>
-                        `;
-                    }).join('');
-                } catch (err) {
-                    document.getElementById('episodesList').innerHTML = "<p style='color:red;'>Failed to load episodes.</p>";
-                }
-            }
-
-            window.copyLink = function(url) {
-                navigator.clipboard.writeText(url).then(() => {
-                    alert("Telegram Bot Link copied to clipboard!");
-                }).catch(() => {
-                    alert("Failed to copy link.");
-                });
-            };
-
-            window.editEpisode = function(id) {
-                const ep = allEpisodes.find(e => e.id === id);
-                if (!ep) return;
-                document.getElementById('editEpisodeId').value = ep.id;
-                document.getElementById('animeName').value = ep.anime_name;
-                document.getElementById('episodeNumber').value = ep.episode_number;
-                document.getElementById('title').value = ep.title || '';
-                setServerInputs(parseStoredVideoUrls(ep.video_url));
-
-                document.getElementById('formTitle').innerText = "✏️ Edit Episode";
-                document.getElementById('submitBtn').innerText = "Update Episode";
-                document.getElementById('cancelBtn').style.display = "block";
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-            };
-
-            window.resetForm = function() {
-                document.getElementById('episodeForm').reset();
-                document.getElementById('editEpisodeId').value = '';
-                setServerInputs(['']);
-                document.getElementById('formTitle').innerText = "🎬 Publish Episode";
-                document.getElementById('submitBtn').innerText = "Publish Episode";
-                document.getElementById('cancelBtn').style.display = "none";
-            };
-
-            window.deleteEpisode = async function(id) {
-                if (!confirm("Are you sure you want to delete this episode?")) return;
-                try {
-                    const res = await fetch(`/api/episodes/${id}`, {
-                        method: 'DELETE',
-                        headers: adminHeaders(false)
-                    });
-                    const data = await res.json();
-                    if (data.success) {
-                        alert("Episode deleted successfully!");
-                        fetchEpisodes();
-                    } else {
-                        alert("Error: " + (data.error || "Delete failed"));
-                    }
-                } catch (err) {
-                    alert("Server error during delete!");
-                }
-            };
-
-            document.getElementById('episodeForm').addEventListener('submit', async (e) => {
+            adminLoginForm.addEventListener('submit', function (e) {
                 e.preventDefault();
-                const editId = document.getElementById('editEpisodeId').value;
-                const animeName = document.getElementById('animeName').value;
-                const episodeNumber = document.getElementById('episodeNumber').value;
-                const title = document.getElementById('title').value;
-                const servers = getCollectedServers();
-                const videoUrl = servers.length > 0 ? servers[0].url : '';
+                const enteredId = loginTelegramIdInput.value.trim();
+                const enteredPass = loginPasswordInput.value;
 
-                if (!videoUrl) {
-                    alert("Please enter at least one valid video URL.");
+                if (!ALLOWED_TELEGRAM_IDS.includes(enteredId)) {
+                    loginError.textContent = "Galat Telegram ID! Sirf authorized admin ID allowed hai.";
                     return;
                 }
 
-                const url = editId ? `/api/episodes/${editId}` : '/api/episodes';
-                const method = editId ? 'PUT' : 'POST';
+                if (enteredPass !== ADMIN_PASSWORD) {
+                    loginError.textContent = "Galat Password! Dobara koshish karein.";
+                    return;
+                }
 
-                try {
-                    const res = await fetch(url, {
-                        method: method,
-                        headers: adminHeaders(true),
-                        body: JSON.stringify({ animeName, episodeNumber, title, videoUrl, servers })
-                    });
-                    const data = await res.json();
-                    if (data.success) {
-                        alert(editId ? "Episode updated successfully!" : "Episode published successfully!");
-                        resetForm();
-                        fetchEpisodes();
-                    } else {
-                        alert("Error: " + (data.error || "Operation failed"));
-                    }
-                } catch (err) {
-                    alert("Server error!");
+                loginError.textContent = "";
+                activeAdminId = enteredId;
+                loginBox.style.display = 'none';
+                adminContainer.style.display = 'block';
+
+                if (!panelInitialized) {
+                    panelInitialized = true;
+                    initAdminPanel();
                 }
             });
 
-            fetchEpisodes();
-        }
+            function initAdminPanel() {
+                let allEpisodes = [];
+                const serversContainer = document.getElementById('serversContainer');
+                const addServerBtn = document.getElementById('addServerBtn');
+
+                function updateServerPlaceholders() {
+                    const rows = serversContainer.querySelectorAll('.server-row');
+                    rows.forEach((row, idx) => {
+                        const inp = row.querySelector('.server-url-input');
+                        if (inp) {
+                            inp.placeholder = `Server ${idx + 1} URL (VDOHide / Filemoon / Embed)`;
+                            inp.required = idx === 0;
+                        }
+                    });
+                }
+
+                function createServerRow(value = '', isFirst = false) {
+                    const row = document.createElement('div');
+                    row.className = 'server-row';
+
+                    const input = document.createElement('input');
+                    input.type = 'text';
+                    input.className = 'server-url-input';
+                    input.value = value;
+                    input.required = isFirst;
+                    row.appendChild(input);
+
+                    if (!isFirst) {
+                        const removeBtn = document.createElement('button');
+                        removeBtn.type = 'button';
+                        removeBtn.className = 'remove-server-btn';
+                        removeBtn.textContent = '✕';
+                        removeBtn.title = 'Remove Server';
+                        removeBtn.addEventListener('click', function () {
+                            row.remove();
+                            updateServerPlaceholders();
+                        });
+                        row.appendChild(removeBtn);
+                    }
+
+                    return row;
+                }
+
+                function setServerInputs(urls = []) {
+                    serversContainer.innerHTML = '';
+                    const list = Array.isArray(urls) && urls.length > 0 ? urls : [''];
+                    list.forEach((url, idx) => {
+                        serversContainer.appendChild(createServerRow(url, idx === 0));
+                    });
+                    updateServerPlaceholders();
+                }
+
+                function parseStoredVideoUrls(rawValue) {
+                    if (!rawValue) return [''];
+                    if (Array.isArray(rawValue)) {
+                        return rawValue.map(v => typeof v === 'string' ? v : (v && v.url ? v.url : '')).filter(Boolean);
+                    }
+                    if (typeof rawValue === 'string') {
+                        const trimmed = rawValue.trim();
+                        if (trimmed.startsWith('[')) {
+                            try {
+                                const parsed = JSON.parse(trimmed);
+                                if (Array.isArray(parsed)) {
+                                    const items = parsed.map(v => typeof v === 'string' ? v : (v && v.url ? v.url : '')).filter(Boolean);
+                                    return items.length > 0 ? items : [''];
+                                }
+                            } catch (_) {}
+                        }
+                        return [trimmed];
+                    }
+                    return [''];
+                }
+
+                function getCollectedServers() {
+                    const inputs = Array.from(serversContainer.querySelectorAll('.server-url-input'));
+                    return inputs
+                        .map((inp, idx) => ({
+                            name: `Server ${idx + 1}`,
+                            url: inp.value.trim()
+                        }))
+                        .filter(s => s.url.length > 0);
+                }
+
+                addServerBtn.addEventListener('click', function () {
+                    serversContainer.appendChild(createServerRow('', false));
+                    updateServerPlaceholders();
+                });
+
+                async function fetchEpisodes() {
+                    try {
+                        const res = await fetch('/api/episodes', {
+                            headers: adminHeaders(false)
+                        });
+                        if (!res.ok) {
+                            throw new Error(`HTTP ${res.status}`);
+                        }
+                        allEpisodes = await res.json();
+                        const listDiv = document.getElementById('episodesList');
+
+                        if (!Array.isArray(allEpisodes) || allEpisodes.length === 0) {
+                            listDiv.innerHTML = "<p>No episodes published yet.</p>";
+                            return;
+                        }
+
+                        listDiv.innerHTML = allEpisodes.map(ep => {
+                            const botLink = `https://t.me/Kitsu_zk_bot?start=${ep.id}`;
+                            const serverCount = parseStoredVideoUrls(ep.video_url).filter(Boolean).length;
+                            const serverBadge = serverCount > 1 ? ` • <span style="color:#ffcc00;">${serverCount} Servers</span>` : '';
+                            return `
+                                <div class="episode-item">
+                                    <strong>${ep.anime_name} - Ep ${ep.episode_number}</strong>${serverBadge}<br>
+                                    <small style="color: #aaa;">${ep.title || 'No title'}</small><br>
+                                    <span style="color: #00aaee; font-size: 11px; word-break: break-all;">Bot Link: ${botLink}</span>
+                                    <div class="btn-group">
+                                        <button class="btn-copy" onclick="copyLink('${botLink}')">Copy Link</button>
+                                        <button class="btn-edit" onclick="editEpisode('${ep.id}')">Edit</button>
+                                        <button class="btn-delete" onclick="deleteEpisode('${ep.id}')">Delete</button>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('');
+                    } catch (err) {
+                        document.getElementById('episodesList').innerHTML = "<p style='color:red;'>Failed to load episodes.</p>";
+                    }
+                }
+
+                window.copyLink = function (url) {
+                    navigator.clipboard.writeText(url).then(() => {
+                        alert("Telegram Bot Link copied to clipboard!");
+                    }).catch(() => {
+                        alert("Failed to copy link.");
+                    });
+                };
+
+                window.editEpisode = function (id) {
+                    const ep = allEpisodes.find(e => e.id === id);
+                    if (!ep) return;
+                    document.getElementById('editEpisodeId').value = ep.id;
+                    document.getElementById('animeName').value = ep.anime_name;
+                    document.getElementById('episodeNumber').value = ep.episode_number;
+                    document.getElementById('title').value = ep.title || '';
+                    setServerInputs(parseStoredVideoUrls(ep.video_url));
+
+                    document.getElementById('formTitle').innerText = "✏️ Edit Episode";
+                    document.getElementById('submitBtn').innerText = "Update Episode";
+                    document.getElementById('cancelBtn').style.display = "block";
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                };
+
+                window.resetForm = function () {
+                    document.getElementById('episodeForm').reset();
+                    document.getElementById('editEpisodeId').value = '';
+                    setServerInputs(['']);
+                    document.getElementById('formTitle').innerText = "🎬 Publish Episode";
+                    document.getElementById('submitBtn').innerText = "Publish Episode";
+                    document.getElementById('cancelBtn').style.display = "none";
+                };
+
+                window.deleteEpisode = async function (id) {
+                    if (!confirm("Are you sure you want to delete this episode?")) return;
+                    try {
+                        const res = await fetch(`/api/episodes/${id}`, {
+                            method: 'DELETE',
+                            headers: adminHeaders(false)
+                        });
+                        const data = await res.json();
+                        if (data.success) {
+                            alert("Episode deleted successfully!");
+                            fetchEpisodes();
+                        } else {
+                            alert("Error: " + (data.error || "Delete failed"));
+                        }
+                    } catch (err) {
+                        alert("Server error during delete!");
+                    }
+                };
+
+                document.getElementById('episodeForm').addEventListener('submit', async function (e) {
+                    e.preventDefault();
+                    const editId = document.getElementById('editEpisodeId').value;
+                    const animeName = document.getElementById('animeName').value;
+                    const episodeNumber = document.getElementById('episodeNumber').value;
+                    const title = document.getElementById('title').value;
+                    const servers = getCollectedServers();
+                    const videoUrl = servers.length > 0 ? servers[0].url : '';
+
+                    if (!videoUrl) {
+                        alert("Please enter at least one valid video URL.");
+                        return;
+                    }
+
+                    const url = editId ? `/api/episodes/${editId}` : '/api/episodes';
+                    const method = editId ? 'PUT' : 'POST';
+
+                    try {
+                        const res = await fetch(url, {
+                            method: method,
+                            headers: adminHeaders(true),
+                            body: JSON.stringify({ animeName, episodeNumber, title, videoUrl, servers })
+                        });
+                        const data = await res.json();
+                        if (data.success) {
+                            alert(editId ? "Episode updated successfully!" : "Episode published successfully!");
+                            resetForm();
+                            fetchEpisodes();
+                        } else {
+                            alert("Error: " + (data.error || "Operation failed"));
+                        }
+                    } catch (err) {
+                        alert("Server error!");
+                    }
+                });
+
+                fetchEpisodes();
+            }
+        })();
     </script>
 </body>
 </html>
